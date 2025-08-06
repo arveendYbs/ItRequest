@@ -1,0 +1,93 @@
+/* custom.css */
+
+/* Define a custom purple color palette using CSS variables */
+:root {
+    --bs-primary: #6f42c1; /* A nice shade of purple */
+    --bs-primary-rgb: 111, 66, 193;
+    --bs-dark: #3a1e50; /* A darker purple for text and hover states */
+    --bs-dark-rgb: 58, 30, 80;
+    --bs-secondary: #f3e5f5; /* A light purple for subtle backgrounds */
+}
+
+/* Set the body background color to a very light gray for contrast */
+body {
+    background-color: #f8f9fa;
+}
+
+/* Navbar styles */
+.navbar-brand, .nav-link {
+    color: var(--bs-dark) !important;
+}
+
+.nav-link.active {
+    font-weight: bold;
+}
+
+/* Button styles */
+.btn-primary {
+    color: #fff;
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background-color: var(--bs-dark);
+    border-color: var(--bs-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Card and container styles */
+.container {
+    padding-bottom: 2rem;
+}
+
+.card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+}
+
+/* Table styles */
+.table th, .table td {
+    vertical-align: middle;
+}
+
+/* Custom header for tables */
+.table-purple-header {
+    background-color: var(--bs-dark) !important; /* Force dark purple background */
+    color: white !important; /* Force white text */
+}
+
+/* Status badge styles */
+.badge {
+    font-size: 0.85em;
+    padding: 0.5em 0.8em;
+    border-radius: 50rem; /* Pill shape */
+    font-weight: 600;
+    /* Ensure default text color for badges is dark for light backgrounds */
+    /* Bootstrap's default dark text color */
+}
+
+/* Specific badge colors with !important for full override */
+.badge.bg-success {
+    background-color: #28a745 !important; /* Green for Approved */
+    color: white !important; /* White text for contrast */
+}
+
+.badge.bg-warning {
+    background-color: #ffc107 !important; /* Yellow for Pending */
+    color: #212529 !important; /* Dark text for contrast on yellow */
+}
+
+.badge.bg-danger {
+    background-color: #dc3545 !important; /* Red for Rejected */
+    color: white !important; /* White text for contrast */
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--bs-dark);
+}
