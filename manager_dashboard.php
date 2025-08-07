@@ -7,8 +7,14 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
     header('Location: login.php');
     exit();
 }
+$manager_id = $_SESSION['user_id'];
 
-$totalRequests = $pdo->query('SELECT COUNT(*) FROM requests')->fetchColumn();
+// Get total requests for this manager's subordinates
+$stmt_total = $pdo->prepare('SELECT COUNT(r.id) FROM requests r JOIN users u ON r.user_id = u.id WHERE u.reporting_manager_id = ?');
+$stmt_total->execute([$manager_id]);
+$totalRequests = $stmt_total->fetchColumn();
+
+//$totalRequests = $pdo->query('SELECT COUNT(*) FROM requests')->fetchColumn();
 ?>
 
 <!DOCTYPE html>
@@ -59,6 +65,8 @@ $totalRequests = $pdo->query('SELECT COUNT(*) FROM requests')->fetchColumn();
                         <tr>
                             <th>Title</th>
                             <th>Description</th>
+                            <th>Category</th>
+                            <th>Subcategory</th>
                             <th>User</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -66,11 +74,24 @@ $totalRequests = $pdo->query('SELECT COUNT(*) FROM requests')->fetchColumn();
                     </thead>
                     <tbody>
                         <?php
-                        $stmt = $pdo->query('SELECT r.*, u.username FROM requests r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC');
+                       // $stmt = $pdo->query('SELECT r.*, u.username FROM requests r JOIN users u ON r.user_id = u.id ORDER BY r.created_at DESC');
+                       // Fetch requests only from subordinates of the current manager
+                        $stmt = $pdo->prepare('SELECT r.*, u.username, c.name as category_name, sc.name as subcategory_name 
+                                             FROM requests r 
+                                             JOIN users u ON r.user_id = u.id 
+                                             LEFT JOIN categories c ON r.category_id = c.id
+                                             LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
+                                             WHERE u.reporting_manager_id = ? 
+                                             ORDER BY r.created_at DESC');
+                        $stmt->execute([$manager_id]);
                         
+
                         while ($request = $stmt->fetch()) {
+                            $status = trim($request['status']); 
+
                             $status_class = '';
-                            switch ($request['status']) {
+ 
+                            switch ($status) {
                                 case 'Approved':
                                     $status_class = 'bg-success';
                                     break;
@@ -87,10 +108,14 @@ $totalRequests = $pdo->query('SELECT COUNT(*) FROM requests')->fetchColumn();
                             echo '<tr>';
                             echo '<td>' . htmlspecialchars($request['title']) . '</td>';
                             echo '<td>' . htmlspecialchars($request['description']) . '</td>';
+                            echo '<td>' . htmlspecialchars($request['category_name'] ?? 'N/A') . '</td>';
+                            echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A') . '</td>';
                             echo '<td>' . htmlspecialchars($request['username']) . '</td>';
                             echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($request['status']) . '</span></td>';
                             echo '<td>';
-                            if ($request['status'] === 'Pending') {
+                          
+                            // Buttons logic for manager
+                            if ($status === 'Pending') {
                                 echo '<form method="POST" action="backend.php" class="d-inline-block me-2">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
                                           <button type="submit" name="approve_request" class="btn btn-success btn-sm">Approve</button>
@@ -100,6 +125,7 @@ $totalRequests = $pdo->query('SELECT COUNT(*) FROM requests')->fetchColumn();
                                           <button type="submit" name="reject_request" class="btn btn-danger btn-sm">Reject</button>
                                       </form>';
                             } else {
+                                // For Approved/Rejected requests, show only Delete or no action
                                 echo '<form method="POST" action="backend.php" class="d-inline-block">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
                                           <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>

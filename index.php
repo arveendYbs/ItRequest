@@ -18,6 +18,12 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
 }
+
+//fetch all categrories fro the dropdown 
+$categories = $pdo->query(
+    'SELECT id, name FROM categories ORDER BY name')->fetchALL(PDO::FETCH_ASSOC);
+
+
 ?>
 
 <!DOCTYPE html>
@@ -33,6 +39,11 @@ if (!isset($_SESSION['user_id'])) {
     <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php">IT Request System</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item">
@@ -51,7 +62,7 @@ if (!isset($_SESSION['user_id'])) {
                         <?php endif; ?>
                     <?php endif; ?>
                 </ul>
-                <ul class="navbar-nav">
+                <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
                         <a class="btn btn-primary" href="logout.php">Logout</a>
                     </li>
@@ -68,10 +79,27 @@ if (!isset($_SESSION['user_id'])) {
             <h2 class="h4 text-dark mb-3">Create a New Request</h2>
             <form method="POST" action="backend.php">
                 <div class="mb-3">
-                    <input type="text" name="title" class="form-control" placeholder="Request Title" required>
+                    <label for="requestTitle" class="form-label">Request Title</label>
+                    <input type="text" name="title" id="requestTitle" class="form-control" placeholder="Request Title" required>
                 </div>
                 <div class="mb-3">
-                    <textarea name="description" class="form-control" placeholder="Request Description" rows="3" required></textarea>
+                    <label for="requestDescription" class="form-label">Request Description</label>
+                    <textarea name="description" id="requestDescription" class="form-control" placeholder="Request Description" rows="3" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="categorySelect" class="form-label">Category</label>
+                    <select name="category_id" id="categorySelect" class="form-select" required>
+                        <option value="">Select Category</option>
+                        <?php foreach ($categories as $cat): ?>
+                            <option value="<?php echo htmlspecialchars($cat['id']); ?>"><?php echo htmlspecialchars($cat['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="subcategorySelect" class="form-label">Subcategory</label>
+                    <select name="subcategory_id" id="subcategorySelect" class="form-select" required disabled>
+                        <option value="">Select Subcategory</option>
+                    </select>
                 </div>
                 <button type="submit" name="create_request" class="btn btn-primary">Create Request</button>
             </form>
@@ -86,17 +114,26 @@ if (!isset($_SESSION['user_id'])) {
                         <tr>
                             <th>Title</th>
                             <th>Description</th>
+                            <th>Category</th>
+                            <th>Subcategory</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
-                        $stmt = $pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY created_at DESC');
+                        //$stmt = $pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY created_at DESC');
+                        $stmt = $pdo->prepare('SELECT r.*, c.name as category_name, sc.name as subcategory_name
+                        FROM requests r
+                        LEFT JOIN categories c ON r.subcategory_id = c.id
+                        LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
+                        WHERE r.user_id = ? ORDER BY r.created_at DESC');
                         $stmt->execute([$_SESSION['user_id']]);
                         
                         while ($request = $stmt->fetch()) {
+                            $status = trim($request['status']); 
                             $status_class = '';
+
                             switch ($request['status']) {
                                 case 'Approved':
                                     $status_class = 'bg-success';
@@ -114,6 +151,9 @@ if (!isset($_SESSION['user_id'])) {
                             echo '<tr>';
                             echo '<td>' . htmlspecialchars($request['title']) . '</td>';
                             echo '<td>' . htmlspecialchars($request['description']) . '</td>';
+                            echo '<td>' . htmlspecialchars($request['category_name'] ?? 'N/A') . '</td>';
+                            echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A') . '</td>';
+
                             echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($request['status']) . '</span></td>';
                             echo '<td>';
                             echo '<form method="POST" action="backend.php" class="d-inline-block">
@@ -131,5 +171,45 @@ if (!isset($_SESSION['user_id'])) {
     </div>
     <!-- Bootstrap JS (optional, for some components like dropdowns) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+        // JavaScript for dynamic subcategory dropdown
+        document.addEventListener('DOMContentLoaded', function() {
+            const categorySelect = document.getElementById('categorySelect');
+            const subcategorySelect = document.getElementById('subcategorySelect');
+
+            categorySelect.addEventListener('change', function() {
+                const categoryId = this.value;
+                subcategorySelect.innerHTML = '<option value="">Loading...</option>'; // Clear and show loading
+                subcategorySelect.disabled = true;
+
+                if (categoryId) {
+                    fetch(`backend.php?action=get_subcategories&category_id=${categoryId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+                            if (data.length > 0) {
+                                data.forEach(subcat => {
+                                    const option = document.createElement('option');
+                                    option.value = subcat.id;
+                                    option.textContent = subcat.name;
+                                    subcategorySelect.appendChild(option);
+                                });
+                                subcategorySelect.disabled = false;
+                            } else {
+                                subcategorySelect.innerHTML = '<option value="">No Subcategories Found</option>';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching subcategories:', error);
+                            subcategorySelect.innerHTML = '<option value="">Error loading subcategories</option>';
+                        });
+                } else {
+                    subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+                    subcategorySelect.disabled = true;
+                }
+            });
+        });
+    </script>
+
 </body>
 </html>
