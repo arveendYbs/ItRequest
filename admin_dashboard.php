@@ -71,6 +71,8 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                             <th>SubCategory</th>
                             <th>User</th>
                             <th>Status</th>
+                            <th>Attachment</th>
+
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -108,6 +110,15 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                             echo '<td>' . htmlspecialchars($request['username']) . '</td>';
                             echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($request['status']) . '</span></td>';
                             echo '<td>';
+                              if ($request['attachment_path']) {
+                                echo '<a href="' . htmlspecialchars($request['attachment_path']) . '" target="_blank" class="btn btn-info btn-sm">View</a>';
+                            } else {
+                                echo 'N/A';
+                            }
+
+                            echo '</td>';
+                            echo '<td>';
+                            // Admin can always delete
                             echo '<form method="POST" action="backend.php" class="d-inline-block">
                                       <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
                                       <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>

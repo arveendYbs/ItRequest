@@ -77,7 +77,7 @@ $categories = $pdo->query(
         <!-- Create New Request Card -->
         <div class="card p-4 shadow mb-5">
             <h2 class="h4 text-dark mb-3">Create a New Request</h2>
-            <form method="POST" action="backend.php">
+            <form method="POST" action="backend.php" enctype="multipart/form-data">
                 <div class="mb-3">
                     <label for="requestTitle" class="form-label">Request Title</label>
                     <input type="text" name="title" id="requestTitle" class="form-control" placeholder="Request Title" required>
@@ -101,6 +101,11 @@ $categories = $pdo->query(
                         <option value="">Select Subcategory</option>
                     </select>
                 </div>
+                <div class="mb-3">
+                    <label for="attachment" class="form-label">Attachment (Optional)</label>
+                    <input type="file" name="attachment" id="attachment" class="form-control">
+                    <small class="form-text text-muted">Max file size: 2MB. Allowed types: jpg, png, pdf.</small>
+                </div>
                 <button type="submit" name="create_request" class="btn btn-primary">Create Request</button>
             </form>
         </div>
@@ -117,6 +122,7 @@ $categories = $pdo->query(
                             <th>Category</th>
                             <th>Subcategory</th>
                             <th>Status</th>
+                            <th>Attachment</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -153,13 +159,26 @@ $categories = $pdo->query(
                             echo '<td>' . htmlspecialchars($request['description']) . '</td>';
                             echo '<td>' . htmlspecialchars($request['category_name'] ?? 'N/A') . '</td>';
                             echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A') . '</td>';
+                            echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($status) . '</span></td>'; 
 
-                            echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($request['status']) . '</span></td>';
                             echo '<td>';
-                            echo '<form method="POST" action="backend.php" class="d-inline-block">
-                                      <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
-                                      <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>
-                                  </form>';
+                              if ($request['attachment_path']) {
+                                echo '<a href="' . htmlspecialchars($request['attachment_path']) . '" target="_blank" class="btn btn-info btn-sm">View</a>';
+                            } else {
+                                echo 'N/A';
+                            }
+                            echo '</td>';
+                            echo '<td>';
+                            // Show Edit and Delete buttons only if status is Pending
+                            if ($status === 'Pending') {
+                                echo '<a href="edit_request.php?id=' . htmlspecialchars($request['id']) . '" class="btn btn-secondary btn-sm me-2">Edit</a>';
+                                echo '<form method="POST" action="backend.php" class="d-inline-block">
+                                          <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
+                                          <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>
+                                      </form>';
+                            } else {
+                                echo 'No actions';
+                            }
                             echo '</td>';
                             echo '</tr>';
                         }

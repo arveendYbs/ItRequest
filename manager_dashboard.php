@@ -69,6 +69,7 @@ $totalRequests = $stmt_total->fetchColumn();
                             <th>Subcategory</th>
                             <th>User</th>
                             <th>Status</th>
+                            <th>Attachment</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -113,7 +114,13 @@ $totalRequests = $stmt_total->fetchColumn();
                             echo '<td>' . htmlspecialchars($request['username']) . '</td>';
                             echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($request['status']) . '</span></td>';
                             echo '<td>';
-                          
+                            if ($request['attachment_path']) {
+                                echo '<a href="' . htmlspecialchars($request['attachment_path']) . '" target="_blank" class="btn btn-info btn-sm">View</a>';
+                            } else {
+                                echo 'N/A';
+                            }
+                            echo '</td>';
+                            echo '<td>';
                             // Buttons logic for manager
                             if ($status === 'Pending') {
                                 echo '<form method="POST" action="backend.php" class="d-inline-block me-2">
@@ -124,12 +131,13 @@ $totalRequests = $stmt_total->fetchColumn();
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
                                           <button type="submit" name="reject_request" class="btn btn-danger btn-sm">Reject</button>
                                       </form>';
-                            } else {
-                                // For Approved/Rejected requests, show only Delete or no action
-                                echo '<form method="POST" action="backend.php" class="d-inline-block">
+                                // Managers can also delete pending subordinate requests
+                                echo '<form method="POST" action="backend.php" class="d-inline-block ms-2">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
                                           <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>
                                       </form>';
+                            } else {
+                                echo 'No actions';
                             }
                             echo '</td>';
                             echo '</tr>';
