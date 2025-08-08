@@ -121,6 +121,16 @@ if ($request['category_id']) {
                     </select>
                 </div>
                 <div class="mb-3">
+                <label for="requestPriority" class="form-label">Priority</label>
+                <select name="requestPriority" id="prioritySelect" class="form-select" required  >
+                    <option value="Low" <?php echo (isset($request['priority']) && $request['priority'] == 'Low') ? 'selected' : ''; ?>>Low</option>
+                    <option value="Medium"<?php echo (isset($request['priority']) && $request['priority'] == 'Medium') ? 'selected' : ''; ?>>Medium</option>
+                    <option value="High" <?php echo (isset($request['priority']) && $request['priority'] == 'High') ? 'selected' : ''; ?>>High</option>
+                </select>
+                
+
+                </div>
+                <div class="mb-3">
                     <label for="attachment" class="form-label">Attachment</label>
                     <?php if ($request['attachment_path']): ?>
                         <p>Current Attachment: <a href="<?php echo htmlspecialchars($request['attachment_path']); ?>" target="_blank"><?php echo basename($request['attachment_path']); ?></a></p>

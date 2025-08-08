@@ -50,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_request'])) {
     $category_id = $_POST['category_id'] ?? null; // New field
     $subcategory_id = $_POST['subcategory_id'] ?? null; // New field
     $user_id = $_SESSION['user_id'];
+    $priority = $_POST['priority'];
     $attachment_path = null;
 
     if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK){
@@ -77,8 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_request'])) {
     }
     
 
-    $stmt = $pdo->prepare('INSERT INTO requests ( title, description, category_id, subcategory_id, user_id, attachment_path) VALUES (?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$title, $description, $category_id, $subcategory_id, $user_id, $attachment_path]);
+    $stmt = $pdo->prepare('INSERT INTO requests ( title, description, category_id, subcategory_id, user_id, attachment_path, priority) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$title, $description, $category_id, $subcategory_id, $user_id, $attachment_path, $priority]);
     header('Location: index.php');
     exit();
 }
@@ -95,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_request'])) {
     $category_id = $_POST['category_id'] ?? null;
     $subcategory_id = $_POST['subcategory_id'] ?? null;
     $current_user_id = $_SESSION['user_id'];
+    $priority = $_SESSION['priority'] ?? null;
 
     // Verify request ownership and status
     $stmt_check = $pdo->prepare('SELECT user_id, status, attachment_path FROM requests WHERE id = ?');
@@ -106,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_request'])) {
         exit();
     }
 
+    $priority = $request['priority'];
     $attachment_path = $request['attachment_path']; // Keep existing path by default
 
     // Handle new file upload for update
@@ -144,8 +147,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_request'])) {
     }
 
 
-    $stmt = $pdo->prepare('UPDATE requests SET title = ?, description = ?, category_id = ?, subcategory_id = ?, attachment_path = ? WHERE id = ?');
-    $stmt->execute([$title, $description, $category_id, $subcategory_id, $attachment_path, $request_id]);
+    $stmt = $pdo->prepare('UPDATE requests SET title = ?, description = ?, category_id = ?, subcategory_id = ?, attachment_path = ?, priority = ? WHERE id = ?');
+    $stmt->execute([$title, $description, $category_id, $subcategory_id, $attachment_path, $request_id, $priority]);
     header('Location: index.php');
     exit();
 }

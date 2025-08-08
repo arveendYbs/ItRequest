@@ -101,6 +101,18 @@ $categories = $pdo->query(
                         <option value="">Select Subcategory</option>
                     </select>
                 </div>
+
+                <!-- Priority drop down -->
+                 <div class="mb-3">
+                    <label for="requestPriority" class="form-label">Priority</label>
+                    <select name="priority" id="requestPriority" class="form-select" required>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                    </select>
+                 </div>
+
+
                 <div class="mb-3">
                     <label for="attachment" class="form-label">Attachment (Optional)</label>
                     <input type="file" name="attachment" id="attachment" class="form-control">
@@ -122,6 +134,7 @@ $categories = $pdo->query(
                             <th>Category</th>
                             <th>Subcategory</th>
                             <th>Status</th>
+                            <th>Priority</th>
                             <th>Attachment</th>
                             <th>Actions</th>
                         </tr>
@@ -131,7 +144,7 @@ $categories = $pdo->query(
                         //$stmt = $pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY created_at DESC');
                         $stmt = $pdo->prepare('SELECT r.*, c.name as category_name, sc.name as subcategory_name
                         FROM requests r
-                        LEFT JOIN categories c ON r.subcategory_id = c.id
+                        LEFT JOIN categories c ON r.category_id = c.id 
                         LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
                         WHERE r.user_id = ? ORDER BY r.created_at DESC');
                         $stmt->execute([$_SESSION['user_id']]);
@@ -160,6 +173,7 @@ $categories = $pdo->query(
                             echo '<td>' . htmlspecialchars($request['category_name'] ?? 'N/A') . '</td>';
                             echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A') . '</td>';
                             echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($status) . '</span></td>'; 
+                            echo '<td>' . htmlspecialchars($request['priority']) . '</td>';
 
                             echo '<td>';
                               if ($request['attachment_path']) {

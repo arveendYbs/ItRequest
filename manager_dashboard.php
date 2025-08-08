@@ -69,6 +69,7 @@ $totalRequests = $stmt_total->fetchColumn();
                             <th>Subcategory</th>
                             <th>User</th>
                             <th>Status</th>
+                            <th>Priority</th>
                             <th>Attachment</th>
                             <th>Actions</th>
                         </tr>
@@ -113,6 +114,8 @@ $totalRequests = $stmt_total->fetchColumn();
                             echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A') . '</td>';
                             echo '<td>' . htmlspecialchars($request['username']) . '</td>';
                             echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($request['status']) . '</span></td>';
+                            echo '<td>' . htmlspecialchars($request['priority']) . '</td>';
+
                             echo '<td>';
                             if ($request['attachment_path']) {
                                 echo '<a href="' . htmlspecialchars($request['attachment_path']) . '" target="_blank" class="btn btn-info btn-sm">View</a>';

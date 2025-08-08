@@ -71,6 +71,7 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                             <th>SubCategory</th>
                             <th>User</th>
                             <th>Status</th>
+                            <th>Priority</th>
                             <th>Attachment</th>
 
                             <th>Actions</th>
@@ -109,6 +110,8 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
 
                             echo '<td>' . htmlspecialchars($request['username']) . '</td>';
                             echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($request['status']) . '</span></td>';
+                            echo '<td>' . htmlspecialchars($request['priority']) . '</td>';
+
                             echo '<td>';
                               if ($request['attachment_path']) {
                                 echo '<a href="' . htmlspecialchars($request['attachment_path']) . '" target="_blank" class="btn btn-info btn-sm">View</a>';
@@ -307,4 +310,7 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
     <!-- Bootstrap JS (optional, for some components like dropdowns) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+    <footer>
+        <p>&copy; 2025 IT Request System. by ArveendPhraseart.</p>
+    </footer>
 </html>
