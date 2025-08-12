@@ -138,7 +138,7 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                             echo '<td>';
                             
                             // IT HOD (Admin) approval buttons
-                            if ($status === 'Pending IT HOD' && $request['current_approver_id'] == $it_hod_id) {
+                            if ($status === 'Approved by Manager' && $request['current_approver_id'] == $it_hod_id) {
                                 echo '<form method="POST" action="backend.php" class="d-inline-block me-2">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
                                           <button type="submit" name="approve_request" class="btn btn-success btn-sm">Approve IT</button>
