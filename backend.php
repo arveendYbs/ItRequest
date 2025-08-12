@@ -9,12 +9,13 @@ function checkRole($requiredRole, $pdo) {
         exit();
     }
 }
-
-function getITHodId($pdo) {
+// Function to get IT HOD ID (assuming admin user is IT HOD)
+function getItHodId($pdo) {
     $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
     $stmt->execute();
     return $stmt->fetchColumn();
 }
+
 
 // Login logic
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
@@ -53,46 +54,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_request'])) {
     }
     $title = $_POST['title'];
     $description = $_POST['description'];
-    $category_id = $_POST['category_id'] ?? null; // New field
-    $subcategory_id = $_POST['subcategory_id'] ?? null; // New field
+    $category_id = $_POST['category_id'] ?? null;
+    $subcategory_id = $_POST['subcategory_id'] ?? null;
+    $priority = $_POST['priority'] ?? 'Medium';
     $user_id = $_SESSION['user_id'];
-    $priority = $_POST['priority'];
     $attachment_path = null;
 
-    // determine initial approver and status
+    // --- START: Logic to determine initial approver and status ---
     $current_approver_id = null;
-    $initial_status = 'Pending IT Hod';
+    $initial_status = 'Pending IT HOD'; // Default status if no specific manager
 
-    // fetch user's direct reporting manager 
-     $stmt_manager = $pdo->prepare("SELECT reporting_manager_id, role FROM users WHERE id = ?");
-    $stmt_manager->execute([$user_id]);
-    $user_info = $stmt_manager->fetch(PDO::FETCH_ASSOC);
+    // Fetch user's direct reporting manager
+    $stmt_user_manager = $pdo->prepare("SELECT reporting_manager_id FROM users WHERE id = ?");
+    $stmt_user_manager->execute([$user_id]);
+    $user_reporting_manager_id = $stmt_user_manager->fetchColumn();
 
-    $reporting_manager_id = $user_info['reporting_manager_id'];
     $it_hod_id = getItHodId($pdo); // Get the ID of the IT HOD (admin)
-    
+
     // If user has a reporting manager AND that manager is not the IT HOD
-    // then the request first goes to the reporting manager for approval.
-    if ($reporting_manager_id && $reporting_manager_id != $it_hod_id) {
-        $current_approver_id = $reporting_manager_id;
+    if ($user_reporting_manager_id && $user_reporting_manager_id != $it_hod_id) {
+        $current_approver_id = $user_reporting_manager_id;
         $initial_status = 'Pending Manager';
     } else {
         // If no reporting manager, or reporting manager IS the IT HOD,
         // it goes directly to IT HOD for initial approval.
-        $current_approver_id = $it_hod_id;
-        $initial_status = 'Pending IT HOD';
+        // Ensure IT HOD exists before assigning them.
+        if ($it_hod_id) {
+            $current_approver_id = $it_hod_id;
+            $initial_status = 'Pending IT HOD';
+        } else {
+            // Fallback: If no IT HOD defined, request is directly approved (or marked for manual intervention)
+            // For now, let's set it to 'Approved' if no IT HOD can be found
+            $initial_status = 'Approved'; // Or a new status like 'No Approver Set'
+            $current_approver_id = null;
+            // You might want to log this or alert an admin.
+        }
     }
-    
-    // handle file upload for new request 
-    if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK){
+    // --- END: Logic to determine initial approver and status ---
+
+
+    // Handle file upload for new request
+    if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = 'uploads/';
         if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
+            mkdir($upload_dir, 0777, true); // Create uploads directory if it doesn't exist
         }
-          $file_name = uniqid() . '_' . basename($_FILES['attachment']['name']);
+        $file_name = uniqid() . '_' . basename($_FILES['attachment']['name']);
         $target_file = $upload_dir . $file_name;
 
-        // Basic file type and size validation (optional but recommended)
+        // Basic file type and size validation
         $allowed_types = ['image/jpeg', 'image/png', 'application/pdf'];
         $max_size = 2 * 1024 * 1024; // 2 MB
 
@@ -101,19 +111,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_request'])) {
                 $attachment_path = $target_file;
             } else {
                 echo "Error uploading file.";
-                // Consider logging this error or showing a user-friendly message
             }
         } else {
             echo "Invalid file type or size. Allowed: JPG, PNG, PDF (Max 2MB).";
         }
     }
-    
 
-    $stmt = $pdo->prepare('INSERT INTO requests ( title, description, category_id, subcategory_id, user_id, attachment_path, priority) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$title, $description, $category_id, $subcategory_id, $user_id, $attachment_path, $priority]);
+    // Insert statement including current_approver_id and initial_status
+    $stmt = $pdo->prepare('INSERT INTO requests (title, description, category_id, subcategory_id, priority, user_id, attachment_path, status, current_approver_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$title, $description, $category_id, $subcategory_id, $priority, $user_id, $attachment_path, $initial_status, $current_approver_id]);
     header('Location: index.php');
     exit();
 }
+
 // update request for creator only
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_request'])) {
     if (!isset($_SESSION['user_id'])) {

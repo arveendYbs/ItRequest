@@ -95,7 +95,7 @@ $it_hod_username = $it_hod_user['username'] ?? 'N/A';
                                              LEFT JOIN categories c ON r.category_id = c.id
                                              LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
                                              LEFT JOIN users ca ON r.current_approver_id = ca.id 
-                                             WHERE u.reporting_manager_id = ? 
+                                             WHERE r.current_approver_id = ? AND r.status = "Pending Manager"
                                              ORDER BY r.created_at DESC');
                         $stmt->execute([$manager_id]);
                         
@@ -165,6 +165,100 @@ $it_hod_username = $it_hod_user['username'] ?? 'N/A';
                 </table>
             </div>
         </div>
+
+        
+        <!-- All Subordinates' Requests (Read-only for tracking) -->
+        <div class="card p-4 shadow mt-5">
+            <h3 class="mb-3">All Subordinates' Requests (For Tracking)</h3>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-purple-header">
+                        <tr>
+                            <th>Title</th>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Subcategory</th>
+                            <th>User</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Current Approver</th>
+                            <th>Attachment</th>
+                            <th>Actions</th> <!-- No approval actions here -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        // Fetch all requests where the user's reporting_manager_id matches the current manager's ID
+                        // This table is for tracking purposes, not for active approval.
+                        $stmt_all_subordinates = $pdo->prepare('SELECT r.*, u.username, c.name as category_name, sc.name as subcategory_name, ca.username as current_approver_username
+                                             FROM requests r 
+                                             JOIN users u ON r.user_id = u.id 
+                                             LEFT JOIN categories c ON r.category_id = c.id
+                                             LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
+                                             LEFT JOIN users ca ON r.current_approver_id = ca.id
+                                             WHERE u.reporting_manager_id = ? 
+                                             ORDER BY r.created_at DESC');
+                        $stmt_all_subordinates->execute([$manager_id]);
+                        
+                        while ($request = $stmt_all_subordinates->fetch()) {
+                            $status = trim($request['status']); 
+                            $status_class = '';
+
+                            switch ($status) {
+                                case 'Approved':
+                                    $status_class = 'bg-success';
+                                    break;
+                                case 'Pending Manager':
+                                case 'Pending IT HOD':
+                                    $status_class = 'bg-warning text-dark';
+                                    break;
+                                case 'Rejected':
+                                    $status_class = 'bg-danger';
+                                    break;
+                                case 'Approved by Manager': 
+                                    $status_class = 'bg-info'; 
+                                    break;
+                                default:
+                                    $status_class = 'bg-secondary';
+                                    break;
+                            }
+                            echo '<tr>';
+                            echo '<td>' . htmlspecialchars($request['title']) . '</td>';
+                            echo '<td>' . htmlspecialchars($request['description']) . '</td>';
+                            echo '<td>' . htmlspecialchars($request['category_name'] ?? 'N/A') . '</td>';
+                            echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A') . '</td>';
+                            echo '<td>' . htmlspecialchars($request['username']) . '</td>';
+                            echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($status) . '</span></td>'; 
+                            echo '<td>' . htmlspecialchars($request['priority']) . '</td>';
+                            echo '<td>' . htmlspecialchars($request['current_approver_username'] ?? 'N/A') . '</td>'; 
+                            echo '<td>';
+                            if ($request['attachment_path']) {
+                                echo '<a href="' . htmlspecialchars($request['attachment_path']) . '" target="_blank" class="btn btn-info btn-sm">View</a>';
+                            } else {
+                                echo 'N/A';
+                            }
+                            echo '</td>';
+                            echo '<td>';
+                            // No approval/reject actions here, this is a read-only tracking table.
+                            // Only allow delete if the manager is allowed to delete this type of request.
+                            if ($status === 'Pending Manager' && $request['current_approver_id'] == $manager_id) {
+                                echo '<form method="POST" action="backend.php" class="d-inline-block">
+                                          <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
+                                          <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>
+                                      </form>';
+                            } else {
+                                echo 'N/A';
+                            }
+                            echo '</td>';
+                            echo '</tr>';
+                        }
+                        ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+
     </div>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
