@@ -23,7 +23,7 @@ $stmt = $pdo->prepare('SELECT r.*, c.name as category_name, sc.name as subcatego
 $stmt->execute([$request_id, $_SESSION['user_id']]);
 $request = $stmt->fetch();
 
-if (!$request || trim($request['status']) !== 'Pending') {
+if (!$request || trim($request['status']) !== 'Pending Manager') {
     // If request not found, not owned by user, or not pending, deny access
     echo "You are not authorized to edit this request or its status is not pending.";
     // Optionally, redirect to index.php with an error message

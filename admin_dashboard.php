@@ -8,15 +8,21 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
+// Function to get IT HOD ID (assuming admin user is IT HOD)
+function getItHodId($pdo) {
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+    $stmt->execute();
+    return $stmt->fetchColumn();
+}
 
 $totalRequests = $pdo->query('SELECT COUNT(*) FROM requests')->fetchColumn();
+$it_hod_id = getItHodId($pdo); // Get the ID of the logged-in admin (acting as IT HOD)
+
 // Fetch all categories for dropdowns
 $categories = $pdo->query('SELECT id, name FROM categories ORDER BY name')->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch all managers for dropdown
 $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" ORDER BY username')->fetchAll(PDO::FETCH_ASSOC);
-
-
 ?>
 
 <!DOCTYPE html>
@@ -32,6 +38,9 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
     <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php">IT Request System</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item">
@@ -53,14 +62,15 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
     <div class="container mt-5">
         <h1 class="mb-4">Welcome, Admin <?php echo htmlspecialchars($_SESSION['username']); ?></h1>
 
-        <!-- Total Requests Card -->
+        <!-- Summary Card -->
         <div class="card p-4 shadow mb-5">
             <h2 class="h4 text-dark mb-0">Total Requests: <span class="badge bg-primary"><?php echo $totalRequests; ?></span></h2>
+            <p class="mt-3 mb-0">You are the IT HOD for approvals.</p>
         </div>
 
         <!-- All Requests Table Card -->
         <div class="card p-4 shadow mb-5">
-            <h3 class="mb-3">All Requests</h3>
+            <h3 class="mb-3">All Requests (Including IT HOD Approvals)</h3>
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
                     <thead class="table-purple-header">
@@ -68,35 +78,42 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                             <th>Title</th>
                             <th>Description</th>
                             <th>Category</th>
-                            <th>SubCategory</th>
+                            <th>Subcategory</th>
                             <th>User</th>
                             <th>Status</th>
                             <th>Priority</th>
+                            <th>Current Approver</th>
                             <th>Attachment</th>
-
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
-                        $stmt = $pdo->query('SELECT r.*, u.username, c.name as category_name, sc.name as subcategory_name
-                        FROM requests r 
-                        JOIN users u ON r.user_id = u.id 
-                        LEFT JOIN categories c ON r.category_id = c.id
-                        LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
-                        ORDER BY r.created_at DESC');
+                        $stmt = $pdo->query('SELECT r.*, u.username, c.name as category_name, sc.name as subcategory_name, ca.username as current_approver_username
+                                             FROM requests r 
+                                             JOIN users u ON r.user_id = u.id 
+                                             LEFT JOIN categories c ON r.category_id = c.id
+                                             LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
+                                             LEFT JOIN users ca ON r.current_approver_id = ca.id
+                                             ORDER BY r.created_at DESC');
                         
                         while ($request = $stmt->fetch()) {
+                            $status = trim($request['status']); 
                             $status_class = '';
-                            switch ($request['status']) {
+
+                            switch ($status) {
                                 case 'Approved':
                                     $status_class = 'bg-success';
                                     break;
-                                case 'Pending':
+                                case 'Pending Manager':
+                                case 'Pending IT HOD':
                                     $status_class = 'bg-warning text-dark';
                                     break;
                                 case 'Rejected':
                                     $status_class = 'bg-danger';
+                                    break;
+                                case 'Approved by Manager': 
+                                    $status_class = 'bg-info'; 
                                     break;
                                 default:
                                     $status_class = 'bg-secondary';
@@ -105,24 +122,34 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                             echo '<tr>';
                             echo '<td>' . htmlspecialchars($request['title']) . '</td>';
                             echo '<td>' . htmlspecialchars($request['description']) . '</td>';
-                            echo '<td>' . htmlspecialchars($request['category_name'] ?? 'N/A' ) . '</td>';
-                            echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A' ) .  '</td>';
-
+                            echo '<td>' . htmlspecialchars($request['category_name'] ?? 'N/A') . '</td>';
+                            echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A') . '</td>';
                             echo '<td>' . htmlspecialchars($request['username']) . '</td>';
-                            echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($request['status']) . '</span></td>';
+                            echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($status) . '</span></td>'; 
                             echo '<td>' . htmlspecialchars($request['priority']) . '</td>';
-
+                            echo '<td>' . htmlspecialchars($request['current_approver_username'] ?? 'N/A') . '</td>';
                             echo '<td>';
-                              if ($request['attachment_path']) {
+                            if ($request['attachment_path']) {
                                 echo '<a href="' . htmlspecialchars($request['attachment_path']) . '" target="_blank" class="btn btn-info btn-sm">View</a>';
                             } else {
                                 echo 'N/A';
                             }
-
                             echo '</td>';
                             echo '<td>';
-                            // Admin can always delete
-                            echo '<form method="POST" action="backend.php" class="d-inline-block">
+                            
+                            // IT HOD (Admin) approval buttons
+                            if ($status === 'Pending IT HOD' && $request['current_approver_id'] == $it_hod_id) {
+                                echo '<form method="POST" action="backend.php" class="d-inline-block me-2">
+                                          <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
+                                          <button type="submit" name="approve_request" class="btn btn-success btn-sm">Approve IT</button>
+                                      </form>';
+                                echo '<form method="POST" action="backend.php" class="d-inline-block">
+                                          <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
+                                          <button type="submit" name="reject_request" class="btn btn-danger btn-sm">Reject IT</button>
+                                      </form>';
+                            }
+                            // Admin can always delete any request
+                            echo '<form method="POST" action="backend.php" class="d-inline-block ms-2">
                                       <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
                                       <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>
                                   </form>';
@@ -136,15 +163,17 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
         </div>
 
         <!-- User Management Card -->
-        <div class="card p-4 shadow">
+        <div class="card p-4 shadow mb-5">
             <h3 class="mb-3">User Management</h3>
-            <form method="POST" action="backend.php" class="mb-4">
-                <div class="row g-3">
+            <form method="POST" action="backend.php" class="mb-4" enctype="multipart/form-data">
+                <div class="row g-3 align-items-end">
                     <div class="col-md-3">
-                        <input type="text" name="username" class="form-control" placeholder="New Username" required>
+                        <label for="newUsername" class="form-label">Username</label>
+                        <input type="text" name="username" id="newUsername" class="form-control" placeholder="New Username" required>
                     </div>
                     <div class="col-md-3">
-                        <input type="password" name="password" class="form-control" placeholder="New Password" required>
+                        <label for="newPassword" class="form-label">Password</label>
+                        <input type="password" name="password" id="newPassword" class="form-control" placeholder="New Password" required>
                     </div>
                     <div class="col-md-2">
                         <label for="newRole" class="form-label">Role</label>
@@ -164,14 +193,14 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                         </select>
                     </div>
                     <div class="col-md-1">
-                        <button type="submit" name="create_user" class="btn btn-primary w-100">Create User</button>
+                        <button type="submit" name="create_user" class="btn btn-primary w-100">Add</button>
                     </div>
                 </div>
             </form>
             
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
-                    <thead class="table-purple-thead">
+                    <thead class="table-purple-header">
                         <tr>
                             <th>Username</th>
                             <th>Role</th>
@@ -181,16 +210,17 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                     </thead>
                     <tbody>
                         <?php
-                        $users = $pdo->query('SELECT u.id, u.username, u.role, rm.username AS manager_username
-                        FROM users u
-                        LEFT JOIN users rm ON u.reporting_manager_id = rm.id
-                        ORDER BY u.username');
+                        // Fetch users with their reporting manager's username
+                        $users = $pdo->query('SELECT u.id, u.username, u.role, rm.username AS manager_username 
+                                              FROM users u 
+                                              LEFT JOIN users rm ON u.reporting_manager_id = rm.id
+                                              ORDER BY u.username');
                         foreach ($users as $u) {
- echo '<tr>';               echo '<tr>';
+                            echo '<tr>';
                             echo '<td>' . htmlspecialchars($u['username']) . '</td>';
                             echo '<td>' . htmlspecialchars($u['role']) . '</td>';
                             echo '<td>' . htmlspecialchars($u['manager_username'] ?? 'N/A') . '</td>';
-                            echo '<td>';                            
+                            echo '<td>';
                             echo '<form method="POST" action="backend.php" class="d-inline-block">
                                       <input type="hidden" name="id" value="' . htmlspecialchars($u['id']) . '">
                                       <button type="submit" name="delete_user" class="btn btn-danger btn-sm">Delete</button>
@@ -205,9 +235,9 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
         </div>
 
         <!-- Category Management Card -->
-        <div class="card p-4 shadow ">
+        <div class="card p-4 shadow mb-5">
             <h3 class="mb-3">Category Management</h3>
-            <form method="POST" action="backend.php" class="mb-4">
+            <form method="POST" action="backend.php" class="mb-4" enctype="multipart/form-data">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-10">
                         <label for="categoryName" class="form-label">New Category Name</label>
@@ -247,12 +277,11 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                 </table>
             </div>
         </div>
-<br> </br>
 
         <!-- Subcategory Management Card -->
         <div class="card p-4 shadow">
             <h3 class="mb-3">Subcategory Management</h3>
-            <form method="POST" action="backend.php" class="mb-4">
+            <form method="POST" action="backend.php" class="mb-4" enctype="multipart/form-data">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-5">
                         <label for="parentCategory" class="form-label">Parent Category</label>
@@ -306,11 +335,14 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                 </table>
             </div>
         </div>
+        
+        <!-- Export Requests Button (Admin only) -->
+        <div class="card p-4 shadow mt-5">
+            <h3 class="mb-3">Export Data</h3>
+            <a href="export_requests.php" class="btn btn-success w-25">Export Requests to Excel (CSV)</a>
+        </div>
     </div>
-    <!-- Bootstrap JS (optional, for some components like dropdowns) -->
+    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-    <footer>
-        <p>&copy; 2025 IT Request System. by ArveendPhraseart.</p>
-    </footer>
 </html>

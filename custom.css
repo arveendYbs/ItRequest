@@ -68,7 +68,7 @@ body {
     border-radius: 50rem; /* Pill shape */
     font-weight: 600;
     /* Ensure default text color for badges is dark for light backgrounds */
-    /* Bootstrap's default dark text color */
+    color: #212529; /* Bootstrap's default dark text color */
 }
 
 /* Specific badge colors with !important for full override */
@@ -87,13 +87,12 @@ body {
     color: white !important; /* White text for contrast */
 }
 
+.badge.bg-info { /* New badge color for 'Approved by Manager' */
+    background-color: #17a2b8 !important; /* A shade of blue/cyan for info */
+    color: white !important;
+}
+
 /* Headings */
 h1, h2, h3, h4, h5, h6 {
     color: var(--bs-dark);
 }
- footer {
-            text-align: center;
-            padding: 20px;
-            background-color: #f0f0f0;
-            margin-top: 50px;
-        }

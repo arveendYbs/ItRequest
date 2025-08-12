@@ -10,6 +10,12 @@ function checkRole($requiredRole, $pdo) {
     }
 }
 
+function getITHodId($pdo) {
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+    $stmt->execute();
+    return $stmt->fetchColumn();
+}
+
 // Login logic
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     $stmt = $pdo->prepare('SELECT * FROM users WHERE username = ?');
@@ -53,6 +59,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_request'])) {
     $priority = $_POST['priority'];
     $attachment_path = null;
 
+    // determine initial approver and status
+    $current_approver_id = null;
+    $initial_status = 'Pending IT Hod';
+
+    // fetch user's direct reporting manager 
+     $stmt_manager = $pdo->prepare("SELECT reporting_manager_id, role FROM users WHERE id = ?");
+    $stmt_manager->execute([$user_id]);
+    $user_info = $stmt_manager->fetch(PDO::FETCH_ASSOC);
+
+    $reporting_manager_id = $user_info['reporting_manager_id'];
+    $it_hod_id = getItHodId($pdo); // Get the ID of the IT HOD (admin)
+    
+    // If user has a reporting manager AND that manager is not the IT HOD
+    // then the request first goes to the reporting manager for approval.
+    if ($reporting_manager_id && $reporting_manager_id != $it_hod_id) {
+        $current_approver_id = $reporting_manager_id;
+        $initial_status = 'Pending Manager';
+    } else {
+        // If no reporting manager, or reporting manager IS the IT HOD,
+        // it goes directly to IT HOD for initial approval.
+        $current_approver_id = $it_hod_id;
+        $initial_status = 'Pending IT HOD';
+    }
+    
+    // handle file upload for new request 
     if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK){
         $upload_dir = 'uploads/';
         if (!is_dir($upload_dir)) {
@@ -103,10 +134,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_request'])) {
     $stmt_check->execute([$request_id]);
     $request = $stmt_check->fetch();
 
-    if (!$request || $request['user_id'] != $current_user_id || trim($request['status']) !== 'Pending') {
-        echo "You are not authorized to edit this request or its status is not pending.";
+   // Only allow edit if request owner and status is Pending Manager (initial pending state for user)
+    // If it's Approved by Manager, user should no longer edit.
+    if (!$request || $request['user_id'] != $current_user_id || trim($request['status']) !== 'Pending Manager') {
+        echo "You are not authorized to edit this request or its status is not pending manager.";
         exit();
     }
+
 
     $priority = $request['priority'];
     $attachment_path = $request['attachment_path']; // Keep existing path by default
@@ -155,45 +189,130 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_request'])) {
 
 
 
-// Approve request (manager only)
+// Approve request (Manager or IT HOD)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
-    checkRole('manager', $pdo);
-    $request_id = $_POST['id'];
-    $manager_id = $_SESSION['user_id'];
-
-    // Verify if the request belongs to a subordinate of the current manager
-    $stmt_check = $pdo->prepare('SELECT r.id FROM requests r JOIN users u ON r.user_id = u.id WHERE r.id = ? AND u.reporting_manager_id = ?');
-    $stmt_check->execute([$request_id, $manager_id]);
-
-    if ($stmt_check->fetch()) {
-        $stmt = $pdo->prepare("UPDATE requests SET status = 'Approved' WHERE id = ?");
-        $stmt->execute([$request_id]);
-    } else {
-        // Optionally, handle unauthorized approval attempt
-        echo "You are not authorized to approve this request.";
+    if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'manager' && $_SESSION['role'] !== 'admin')) {
+        header('Location: login.php'); // Only managers/admins can approve
+        exit();
     }
-    header('Location: manager_dashboard.php');
+
+    $request_id = $_POST['id'];
+    $approver_id = $_SESSION['user_id'];
+    $approver_role = $_SESSION['role'];
+    $it_hod_id = getItHodId($pdo);
+
+    // Fetch request details to determine current status and approver
+    $stmt_request = $pdo->prepare("SELECT status, current_approver_id FROM requests WHERE id = ?");
+    $stmt_request->execute([$request_id]);
+    $request = $stmt_request->fetch(PDO::FETCH_ASSOC);
+
+    if (!$request) {
+        echo "Request not found.";
+        exit();
+    }
+
+    $current_status = trim($request['status']);
+    $expected_approver_id = $request['current_approver_id'];
+
+    // Check if the current user is the expected approver for this stage
+    if ($approver_id != $expected_approver_id) {
+        echo "You are not authorized to approve this request at this stage.";
+        exit();
+    }
+
+    $new_status = $current_status;
+    $new_approver_id = $expected_approver_id; // Remains the same if not advancing
+
+    switch ($current_status) {
+        case 'Pending Manager':
+            // If current approver is a manager and is the expected approver
+            if ($approver_role === 'manager' && $approver_id == $expected_approver_id) {
+                $new_status = 'Approved by Manager';
+                $new_approver_id = $it_hod_id; // Next approver is IT HOD
+                if (!$new_approver_id) { // Fallback if IT HOD not found
+                    $new_status = 'Approved'; // Directly approve if no IT HOD set
+                    $new_approver_id = null;
+                }
+            } else {
+                echo "Invalid approval attempt for Pending Manager status.";
+                exit();
+            }
+            break;
+
+        case 'Pending IT HOD':
+            // If current approver is admin (IT HOD) and is the expected approver
+            if ($approver_role === 'admin' && $approver_id == $it_hod_id && $approver_id == $expected_approver_id) {
+                $new_status = 'Approved'; // Final approval
+                $new_approver_id = null;
+            } else {
+                echo "Invalid approval attempt for Pending IT HOD status.";
+                exit();
+            }
+            break;
+
+        default:
+            echo "Request is not in an approvable state.";
+            exit();
+    }
+
+    // Update the request with the new status and next approver
+    $stmt_update = $pdo->prepare("UPDATE requests SET status = ?, current_approver_id = ? WHERE id = ?");
+    $stmt_update->execute([$new_status, $new_approver_id, $request_id]);
+
+    // Redirect based on approver role
+    if ($approver_role === 'manager') {
+        header('Location: manager_dashboard.php');
+    } elseif ($approver_role === 'admin') {
+        header('Location: admin_dashboard.php');
+    }
     exit();
 }
-
-// Reject request (manager only, for their subordinates)
+// Reject request (Manager or IT HOD)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
-    checkRole('manager', $pdo);
-    $request_id = $_POST['id'];
-    $manager_id = $_SESSION['user_id'];
+    if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'manager' && $_SESSION['role'] !== 'admin')) {
+        header('Location: login.php'); // Only managers/admins can reject
+        exit();
+    }
 
-    // Verify if the request belongs to a subordinate of the current manager
-    $stmt_check = $pdo->prepare('SELECT r.id FROM requests r JOIN users u ON r.user_id = u.id WHERE r.id = ? AND u.reporting_manager_id = ?');
-    $stmt_check->execute([$request_id, $manager_id]);
-    
-    if ($stmt_check->fetch()) {
-        $stmt = $pdo->prepare("UPDATE requests SET status = 'Rejected' WHERE id = ?");
+    $request_id = $_POST['id'];
+    $approver_id = $_SESSION['user_id'];
+    $approver_role = $_SESSION['role'];
+    $it_hod_id = getItHodId($pdo);
+
+    // Fetch request details to determine current status and approver
+    $stmt_request = $pdo->prepare("SELECT status, current_approver_id FROM requests WHERE id = ?");
+    $stmt_request->execute([$request_id]);
+    $request = $stmt_request->fetch(PDO::FETCH_ASSOC);
+
+    if (!$request) {
+        echo "Request not found.";
+        exit();
+    }
+
+    $current_status = trim($request['status']);
+    $expected_approver_id = $request['current_approver_id'];
+
+    // Check if the current user is the expected approver for this stage
+    if ($approver_id != $expected_approver_id) {
+        echo "You are not authorized to reject this request at this stage.";
+        exit();
+    }
+
+    // Only allow rejection if status is Pending Manager or Pending IT HOD
+    if ($current_status === 'Pending Manager' || $current_status === 'Pending IT HOD') {
+        $stmt = $pdo->prepare("UPDATE requests SET status = 'Rejected', current_approver_id = NULL WHERE id = ?");
         $stmt->execute([$request_id]);
     } else {
-        // Optionally, handle unauthorized rejection attempt
-        echo "You are not authorized to reject this request.";
+        echo "Request is not in a rejectable state.";
+        exit();
     }
-    header('Location: manager_dashboard.php');
+    
+    // Redirect based on approver role
+    if ($approver_role === 'manager') {
+        header('Location: manager_dashboard.php');
+    } elseif ($approver_role === 'admin') {
+        header('Location: admin_dashboard.php');
+    }
     exit();
 }
 
@@ -214,8 +333,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_request'])) {
     $request_details = $stmt_fetch_request->fetch();
 
     if (!$request_details) {
-        // Request not found
-        header('Location: index.php'); // Or appropriate error page
+        echo "Request not found.";
         exit();
     }
 
@@ -226,32 +344,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_request'])) {
     // Authorization for deletion
     $can_delete = false;
     if ($role === 'admin') {
-        // Admin can delete any request
+        // Admin can delete any request regardless of status
         $can_delete = true;
     } elseif ($role === 'manager') {
-        // Manager can delete requests from their subordinates, regardless of status (as per current logic)
-        // If you want managers to only delete pending subordinate requests, uncomment the block below:
-        // $stmt_check_subordinate = $pdo->prepare('SELECT r.id FROM requests r JOIN users u ON r.user_id = u.id WHERE r.id = ? AND u.reporting_manager_id = ?');
-        // $stmt_check_subordinate->execute([$request_id, $current_user_id]);
-        // if ($stmt_check_subordinate->fetch() && $request_status === 'Pending') {
-        //     $can_delete = true;
-        // }
-        // For now, managers can delete any subordinate request
-        $stmt_check_subordinate = $pdo->prepare('SELECT r.id FROM requests r JOIN users u ON r.user_id = u.id WHERE r.id = ? AND u.reporting_manager_id = ?');
-        $stmt_check_subordinate->execute([$request_id, $current_user_id]);
-        if ($stmt_check_subordinate->fetch()) {
+        // Managers can delete ONLY requests that they are currently assigned to approve, and that are pending.
+        // Or if they are the direct manager of the user who created it and it's pending their approval.
+        // For simplicity, let's allow managers to delete only Pending Manager requests that they are assigned to approve
+        // or any subordinate's requests that are still Pending Manager.
+        $stmt_manager_subordinate_request = $pdo->prepare(
+            "SELECT r.id FROM requests r JOIN users u ON r.user_id = u.id 
+             WHERE r.id = ? AND u.reporting_manager_id = ? AND r.status = 'Pending Manager'"
+        );
+        $stmt_manager_subordinate_request->execute([$request_id, $current_user_id]);
+        if ($stmt_manager_subordinate_request->fetch()) {
             $can_delete = true;
         }
 
     } elseif ($role === 'user') {
-        // User can only delete their own pending requests
-        if ($request_owner_id == $current_user_id && $request_status === 'Pending') {
+        // User can only delete their own requests if the status is 'Pending Manager'
+        if ($request_owner_id == $current_user_id && $request_status === 'Pending Manager') {
             $can_delete = true;
         }
     }
 
     if (!$can_delete) {
-        echo "You are not authorized to delete this request.";
+        echo "You are not authorized to delete this request at this stage.";
         exit();
     }
 
@@ -274,6 +391,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_request'])) {
     }
     exit();
 }
+
 // CRUD for users (admin only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_user'])) {
     checkRole('admin', $pdo);
@@ -288,7 +406,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_user'])) {
     $username = $_POST['username'];
     $password_hashed = password_hash($_POST['password'], PASSWORD_BCRYPT);
     $role = $_POST['role'];
-    $reporting_manager_id = $_POST['reporting_manager_id'] !== '' ? $_POST['reporting_manager_id'] : null; // New field
+    $reporting_manager_id = $_POST['reporting_manager_id'] !== '' ? $_POST['reporting_manager_id'] : null;
 
     $stmt = $pdo->prepare('INSERT INTO users (username, password, role, reporting_manager_id) VALUES (?, ?, ?, ?)');
     $stmt->execute([$username, $password_hashed, $role, $reporting_manager_id]);
@@ -303,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
     $stmt->execute([$_POST['id']]);
     header('Location: admin_dashboard.php');
     exit();
-}
+}   
 // CRUD for Categories (admin only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_category'])) {
     checkRole('admin', $pdo);

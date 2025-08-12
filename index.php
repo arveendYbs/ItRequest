@@ -157,12 +157,18 @@ $categories = $pdo->query(
                                 case 'Approved':
                                     $status_class = 'bg-success';
                                     break;
-                                case 'Pending':
+                                case 'Pending Manager':
+                                case 'Pending IT HOD':
                                     $status_class = 'bg-warning text-dark';
                                     break;
                                 case 'Rejected':
                                     $status_class = 'bg-danger';
                                     break;
+                                case 'Approved By Manager':
+                                    $status_class = 'bg-info';
+                                    break;
+            
+
                                 default:
                                     $status_class = 'bg-secondary';
                                     break;
@@ -184,7 +190,7 @@ $categories = $pdo->query(
                             echo '</td>';
                             echo '<td>';
                             // Show Edit and Delete buttons only if status is Pending
-                            if ($status === 'Pending') {
+                            if ($status === 'Pending Manager') {
                                 echo '<a href="edit_request.php?id=' . htmlspecialchars($request['id']) . '" class="btn btn-secondary btn-sm me-2">Edit</a>';
                                 echo '<form method="POST" action="backend.php" class="d-inline-block">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
