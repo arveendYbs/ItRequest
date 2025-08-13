@@ -3,14 +3,15 @@ session_start();
 require_once 'config.php';
 
 // Access control: only admins can view this page
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+//if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || (!in_array($_SESSION['role'], ['admin', 'it_hod']))) { 
     header('Location: login.php');
     exit();
 }
 
 // Function to get IT HOD ID (assuming admin user is IT HOD)
 function getItHodId($pdo) {
-    $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'it_hod' LIMIT 1");
     $stmt->execute();
     return $stmt->fetchColumn();
 }
@@ -23,6 +24,10 @@ $categories = $pdo->query('SELECT id, name FROM categories ORDER BY name')->fetc
 
 // Fetch all managers for dropdown
 $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" ORDER BY username')->fetchAll(PDO::FETCH_ASSOC);
+
+$logged_in_user_id = $_SESSION['user_id'];
+$logged_in_user_role = $_SESSION['role'];
+
 ?>
 
 <!DOCTYPE html>
@@ -46,9 +51,16 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                     <li class="nav-item">
                         <a class="nav-link" href="index.php">Home</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="admin_dashboard.php">Admin Dashboard</a>
-                    </li>
+                      <?php if ($logged_in_user_role !== 'it_hod'): ?>
+                        <li class="nav-item">
+                            <a class="nav-link active" aria-current="page" href="admin_dashboard.php">Admin Dashboard</a>
+                        </li>
+                    <?php endif; ?>
+                    <?php if ($logged_in_user_role === 'it_hod'): ?>
+                        <li class="nav-item">
+                            <a class="nav-link active" aria-current="page" href="#">IT HOD Actions</a>
+                        </li>
+                    <?php endif; ?>
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item">
@@ -60,14 +72,27 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
     </nav>
     
     <div class="container mt-5">
-        <h1 class="mb-4">Welcome, Admin <?php echo htmlspecialchars($_SESSION['username']); ?></h1>
+        <h1 class="mb-4">Welcome,  <?php echo htmlspecialchars($_SESSION['username']); ?></h1>
 
-        <!-- Summary Card -->
+        <!-- Summary Card 
         <div class="card p-4 shadow mb-5">
             <h2 class="h4 text-dark mb-0">Total Requests: <span class="badge bg-primary"><?php echo $totalRequests; ?></span></h2>
             <p class="mt-3 mb-0">You are the IT HOD for approvals.</p>
-        </div>
+        </div> -->
 
+ <!-- Summary Card -->
+        <div class="card p-4 shadow mb-5">
+            <h2 class="h4 text-dark mb-0">Total Requests: <span class="badge bg-primary"><?php echo $totalRequests; ?></span></h2>
+            <?php if ($logged_in_user_role === 'it_hod'): ?>
+                <h3 class="mt-3 mb-0">Requests Pending My IT HOD Approval: 
+                    <?php
+                    $stmt_it_hod_pending = $pdo->prepare('SELECT COUNT(*) FROM requests WHERE current_approver_id = ? AND status = "Approved by Manager"');
+                    $stmt_it_hod_pending->execute([$logged_in_user_id]);
+                    echo '<span class="badge bg-warning text-dark">' . $stmt_it_hod_pending->fetchColumn() . '</span>';
+                    ?>
+                </h3>
+            <?php endif; ?>
+        </div>
         <!-- All Requests Table Card -->
         <div class="card p-4 shadow mb-5">
             <h3 class="mb-3">All Requests (Including IT HOD Approvals)</h3>
@@ -137,7 +162,7 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                             echo '</td>';
                             echo '<td>';
                             
-                            // IT HOD (Admin) approval buttons
+                          /*  // IT HOD (Admin) approval buttons
                             if ($status === 'Approved by Manager' && $request['current_approver_id'] == $it_hod_id) {
                                 echo '<form method="POST" action="backend.php" class="d-inline-block me-2">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
@@ -148,11 +173,26 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                                           <button type="submit" name="reject_request" class="btn btn-danger btn-sm">Reject IT</button>
                                       </form>';
                             }
-                            // Admin can always delete any request
-                            echo '<form method="POST" action="backend.php" class="d-inline-block ms-2">
-                                      <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
-                                      <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>
-                                  </form>';
+                                      */
+                            // IT HOD (specific role) approval buttons
+                            if ($logged_in_user_role === 'it_hod' && $status === 'Approved by Manager'  && $request['current_approver_id'] == $logged_in_user_id) {
+                                echo '<form method="POST" action="backend.php" class="d-inline-block me-2">
+                                          <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
+                                          <button type="submit" name="approve_request" class="btn btn-success btn-sm">Approve IT</button>
+                                      </form>';
+                                echo '<form method="POST" action="backend.php" class="d-inline-block">
+                                          <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
+                                          <button type="submit" name="reject_request" class="btn btn-danger btn-sm">Reject IT</button>
+                                      </form>';
+                            }
+                             // Admin (original 'admin' role) can always delete any request
+                            // IT HOD can also delete any request
+                            if ($logged_in_user_role === 'admin' || $logged_in_user_role === 'it_hod') {
+                                echo '<form method="POST" action="backend.php" class="d-inline-block ms-2">
+                                          <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
+                                          <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>
+                                      </form>';
+                            }
                             echo '</td>';
                             echo '</tr>';
                         }
@@ -162,6 +202,7 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
             </div>
         </div>
 
+        <?php if ($logged_in_user_role === 'admin'): // Only 'admin' role can manage users, categories, subcategories ?>
         <!-- User Management Card -->
         <div class="card p-4 shadow mb-5">
             <h3 class="mb-3">User Management</h3>
@@ -181,14 +222,15 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                             <option value="user">User</option>
                             <option value="manager">Manager</option>
                             <option value="admin">Admin</option>
+                            <option value="it_hod">IT HOD</option> <!-- New role option -->
                         </select>
                     </div>
                     <div class="col-md-3">
                         <label for="reportingManager" class="form-label">Reporting Manager</label>
                         <select name="reporting_manager_id" id="reportingManager" class="form-select">
                             <option value="">None</option>
-                            <?php foreach ($managers as $manager): ?>
-                                <option value="<?php echo htmlspecialchars($manager['id']); ?>"><?php echo htmlspecialchars($manager['username']); ?></option>
+                            <?php foreach ($managers_and_it_hods as $manager_or_it_hod): // Use the combined list ?>
+                                <option value="<?php echo htmlspecialchars($manager_or_it_hod['id']); ?>"><?php echo htmlspecialchars($manager_or_it_hod['username']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -210,7 +252,6 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                     </thead>
                     <tbody>
                         <?php
-                        // Fetch users with their reporting manager's username
                         $users = $pdo->query('SELECT u.id, u.username, u.role, rm.username AS manager_username 
                                               FROM users u 
                                               LEFT JOIN users rm ON u.reporting_manager_id = rm.id
@@ -335,7 +376,7 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
                 </table>
             </div>
         </div>
-        
+        <?php endif; // End of admin-only sections ?>
         <!-- Export Requests Button (Admin only) -->
         <div class="card p-4 shadow mt-5">
             <h3 class="mb-3">Export Data</h3>

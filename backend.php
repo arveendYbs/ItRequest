@@ -9,9 +9,9 @@ function checkRole($requiredRole, $pdo) {
         exit();
     }
 }
-// Function to get IT HOD ID (assuming admin user is IT HOD)
+// Function to get IT HOD ID (assuming admin user is IT HOD )
 function getItHodId($pdo) {
-    $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE role = 'it_hod' LIMIT 1");
     $stmt->execute();
     return $stmt->fetchColumn();
 }
@@ -33,6 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             header('Location: admin_dashboard.php');
         } elseif ($user['role'] === 'manager') {
             header('Location: manager_dashboard.php');
+        } elseif ($user['role'] === 'it_hod') {
+            header('Location: admin_dashboard.php');
         } else {
             header('Location: index.php');
         }
@@ -73,21 +75,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_request'])) {
 
     // If user has a reporting manager AND that manager is not the IT HOD
     if ($user_reporting_manager_id && $user_reporting_manager_id != $it_hod_id) {
-        $current_approver_id = $user_reporting_manager_id;
-        $initial_status = 'Pending Manager';
+        // Verify the reporting manager actually exists and is a manager role
+        $stmt_check_manager = $pdo->prepare("SELECT id FROM users WHERE id = ? AND role = 'manager'");
+        $stmt_check_manager->execute([$user_reporting_manager_id]);
+        if ($stmt_check_manager->fetch()) {
+            $current_approver_id = $user_reporting_manager_id;
+            $initial_status = 'Pending Manager';
+        } else {
+            // Reporting manager is not a manager, or doesn't exist. Send to IT HOD.
+            if ($it_hod_id) {
+                $current_approver_id = $it_hod_id;
+                $initial_status = 'Pending IT HOD';
+            } else {
+                $initial_status = 'Approved'; // Fallback if no IT HOD set
+                $current_approver_id = null;
+            }
+        }
     } else {
         // If no reporting manager, or reporting manager IS the IT HOD,
         // it goes directly to IT HOD for initial approval.
-        // Ensure IT HOD exists before assigning them.
         if ($it_hod_id) {
             $current_approver_id = $it_hod_id;
             $initial_status = 'Pending IT HOD';
         } else {
-            // Fallback: If no IT HOD defined, request is directly approved (or marked for manual intervention)
-            // For now, let's set it to 'Approved' if no IT HOD can be found
-            $initial_status = 'Approved'; // Or a new status like 'No Approver Set'
+            $initial_status = 'Approved'; // Fallback if no IT HOD set
             $current_approver_id = null;
-            // You might want to log this or alert an admin.
         }
     }
     // --- END: Logic to determine initial approver and status ---
@@ -201,11 +213,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_request'])) {
 
 // Approve request (Manager or IT HOD)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
-    if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'manager' && $_SESSION['role'] !== 'admin')) {
-        header('Location: login.php'); // Only managers/admins can approve
+    if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['manager', 'admin', 'it_hod'])) {
+        header('Location: login.php');
         exit();
     }
-
     $request_id = $_POST['id'];
     $approver_id = $_SESSION['user_id'];
     $approver_role = $_SESSION['role'];
@@ -226,6 +237,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
 
     // Check if the current user is the expected approver for this stage
     if ($approver_id != $expected_approver_id) {
+        echo $approver_id ;
+        echo "it_hod_id:  $it_hod_id + $approver_role" ;
         echo "You are not authorized to approve this request at this stage.";
         exit();
     }
@@ -236,7 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
     switch ($current_status) {
         case 'Pending Manager':
             // If current approver is a manager and is the expected approver
-            if ($approver_role === 'manager' && $approver_id == $expected_approver_id) {
+            if ($approver_role === 'manager' || $approver_id == $expected_approver_id) {
                 $new_status = 'Approved by Manager';
                 $new_approver_id = $it_hod_id; // Next approver is IT HOD
                 if (!$new_approver_id) { // Fallback if IT HOD not found
@@ -251,10 +264,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
 
         case 'Pending IT HOD':
             // If current approver is admin (IT HOD) and is the expected approver
-            if ($approver_role === 'admin' && $approver_id == $it_hod_id && $approver_id == $expected_approver_id) {
+           // if ($approver_role === 'it_hod' && $approver_id == $it_hod_id && $approver_id == $expected_approver_id) {
+        if ($approver_role === 'it_hod' && $approver_id == $it_hod_id) {
                 $new_status = 'Approved'; // Final approval
                 $new_approver_id = null;
             } else {
+                echo "Invalid approval attempt for Pending IT HOD status.";
+                exit();
+            }
+            break;
+        case 'Approved by Manager':
+            if ($approver_role === 'it_hod' && $approver_id == $it_hod_id) {
+                $new_status = 'Approved'; // Final approval
+                $new_approver_id = null;
+            } else { 
                 echo "Invalid approval attempt for Pending IT HOD status.";
                 exit();
             }
@@ -272,14 +295,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
     // Redirect based on approver role
     if ($approver_role === 'manager') {
         header('Location: manager_dashboard.php');
-    } elseif ($approver_role === 'admin') {
+    } elseif ($approver_role === 'it_hod') { // IT HODs redirect to admin_dashboard (their dashboard)
         header('Location: admin_dashboard.php');
+    } else { // Fallback for other roles if any somehow got here (e.g., admin)
+         header('Location: admin_dashboard.php');
     }
     exit();
 }
 // Reject request (Manager or IT HOD)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
-    if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'manager' && $_SESSION['role'] !== 'admin')) {
+   // if (!isset($_SESSION['user_id']) || ($_SESSION['role'] !== 'manager' && $_SESSION['role'] !== 'admin')) {
+    if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['manager', 'admin', 'it_hod'])) {
+
         header('Location: login.php'); // Only managers/admins can reject
         exit();
     }
@@ -309,7 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
     }
 
     // Only allow rejection if status is Pending Manager or Pending IT HOD
-    if ($current_status === 'Pending Manager' || $current_status === 'Pending IT HOD') {
+    if ($current_status === 'Pending Manager' || $current_status === 'Approved by Manager') {
         $stmt = $pdo->prepare("UPDATE requests SET status = 'Rejected', current_approver_id = NULL WHERE id = ?");
         $stmt->execute([$request_id]);
     } else {

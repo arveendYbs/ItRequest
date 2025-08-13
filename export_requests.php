@@ -1,13 +1,19 @@
 <?php
 session_start();
 require_once 'config.php';
-
+/*
 // Access control: Only admins can export data
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit();
 }
 
+*/
+// Access control: Allow manager, admin, IT HOD to export data
+if (!isset($_SESSION['role']) || (!in_array($_SESSION['role'], ['manager', 'admin', 'it_hod']))) {
+    header('Location: login.php');
+    exit();
+}
 // Fetch all requests with related data
 $stmt = $pdo->query('SELECT 
                         r.id, 
@@ -18,7 +24,6 @@ $stmt = $pdo->query('SELECT
                         sc.name as subcategory_name, 
                         r.status, 
                         r.priority,
-                        r.attachment_path,
                         ca.username as current_approver,
                         r.created_at
                      FROM requests r 
@@ -46,7 +51,6 @@ fputcsv($output, array(
     'Subcategory', 
     'Status', 
     'Priority',
-    'Attachment Path',
     'Current Approver',
     'Created At'
 ));
@@ -63,7 +67,7 @@ foreach ($requests as $request) {
         $request['subcategory_name'] ?? 'N/A',
         $request['status'],
         $request['priority'],
-        $request['attachment_path'] ?? 'N/A',
+      //  $request['attachment_path'] ?? 'N/A',
         $request['current_approver'] ?? 'N/A',
         $request['created_at']
     ];
