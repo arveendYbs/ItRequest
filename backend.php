@@ -4,10 +4,21 @@ require_once 'config.php';
 
 // Helper function to check role and redirect
 function checkRole($requiredRole, $pdo) {
-    if (!isset($_SESSION['role']) || $_SESSION['role'] !== $requiredRole) {
-        header('Location: index.php'); // Redirect to home page if unauthorized
+    if (!isset($_SESSION['role'])) {
+        header('Location: login.php');
         exit();
     }
+    $current_role = $_SESSION['role'];
+
+    if ($requiredRole === 'admin' && $current_role !== 'admin') {
+        header('Location: index.php');
+        exit();
+    }
+    if ($requiredRole === 'manager' && !in_array($current_role, ['manager', 'admin', 'it_hod'])){
+        header('Location: index.php');
+        exit();
+    }
+
 }
 // Function to get IT HOD ID (assuming admin user is IT HOD )
 function getItHodId($pdo) {
@@ -444,13 +455,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_user'])) {
     $password_hashed = password_hash($_POST['password'], PASSWORD_BCRYPT);
     $role = $_POST['role'];
     $reporting_manager_id = $_POST['reporting_manager_id'] !== '' ? $_POST['reporting_manager_id'] : null;
+    $company_id = $_POST['company_id'] !== '' ? $_POST['company_id'] : null;
+    $department_type_id = $_POST['department_type_id'] !== '' ? $_POST['department_type_id'] : null;
 
-    $stmt = $pdo->prepare('INSERT INTO users (username, password, role, reporting_manager_id) VALUES (?, ?, ?, ?)');
-    $stmt->execute([$username, $password_hashed, $role, $reporting_manager_id]);
+
+    $stmt = $pdo->prepare('INSERT INTO users (username, password, role, reporting_manager_id, company_id, department_type_id) VALUES (?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$username, $password_hashed, $role, $reporting_manager_id, $company_id, $department_type_id]);
     header('Location: admin_dashboard.php');
     exit();
 }
 
+
+// Update user (admin only)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_user'])) {
+    checkRole('admin', $pdo);
+
+    $user_id = $_POST['user_id'];
+    $username = $_POST['username'];
+    $role = $_POST['role'];
+    $reporting_manager_id = $_POST['reporting_manager_id'] !== '' ? $_POST['reporting_manager_id'] : null;
+    $company_id = $_POST['company_id'] !== '' ? $_POST['company_id'] : null; // Changed from division_id
+    $department_type_id = $_POST['department_type_id'] !== '' ? $_POST['department_type_id'] : null; // Changed from department_id
+
+    $sql = 'UPDATE users SET username = ?, role = ?, reporting_manager_id = ?, company_id = ?, department_type_id = ? WHERE id = ?';
+    $params = [$username, $role, $reporting_manager_id, $company_id, $department_type_id, $user_id];
+
+    if (!empty($_POST['password'])) {
+        $password_hashed = password_hash($_POST['password'], PASSWORD_BCRYPT);
+        $sql = 'UPDATE users SET username = ?, password = ?, role = ?, reporting_manager_id = ?, company_id = ?, department_type_id = ? WHERE id = ?';
+        $params = [$username, $password_hashed, $role, $reporting_manager_id, $company_id, $department_type_id, $user_id];
+    }
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    header('Location: admin_dashboard.php');
+    exit();
+}
 // Delete user (admin only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
     checkRole('admin', $pdo);
@@ -459,6 +499,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
     header('Location: admin_dashboard.php');
     exit();
 }   
+
+// CRUD for Department Types (admin only) - Changed from Departments
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_department_type'])) { // Changed from create_department
+    checkRole('admin', $pdo);
+    $stmt = $pdo->prepare('INSERT INTO department_types (company_id, name) VALUES (?, ?)'); // Changed table and column names
+    $stmt->execute([$_POST['parent_company_id'], $_POST['department_type_name']]); // Changed names
+    header('Location: admin_dashboard.php');
+    exit();
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_department_type'])) { // Changed from delete_department
+    checkRole('admin', $pdo);
+    $stmt = $pdo->prepare('DELETE FROM department_types WHERE id = ?'); // Changed table name
+    $stmt->execute([$_POST['id']]);
+    header('Location: admin_dashboard.php');
+    exit();
+}
+
 // CRUD for Categories (admin only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_category'])) {
     checkRole('admin', $pdo);

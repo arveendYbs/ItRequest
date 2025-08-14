@@ -1,29 +1,45 @@
 <?php
 session_start();
 require_once 'config.php';
-
-// Redirect users with specific roles to their dashboards
-if (isset($_SESSION['role'])) {
-    if ($_SESSION['role'] === 'admin') {
-        header('Location: admin_dashboard.php');
-        exit();
-    } elseif ($_SESSION['role'] === 'manager') {
-        header('Location: manager_dashboard.php');
-        exit();
-    }
-}
-
-// Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit();
 }
 
+$logged_in_user_id = $_SESSION['user_id'];
+$logged_in_user_role = $_SESSION['role'];
+
 //fetch all categrories fro the dropdown 
 $categories = $pdo->query(
     'SELECT id, name FROM categories ORDER BY name')->fetchALL(PDO::FETCH_ASSOC);
+$stmt_user_info = $pdo->prepare('SELECT c.name as company_name, dt.name as department_type_name
+                                FROM users u 
+                                LEFT JOIN companies c ON u.company_id = c.id
+                                LEFT JOIN department_types dt ON u.department_type_id = dt.id
+                                WHERE u.id = ?');
+$stmt_user_info-> execute([$logged_in_user_id]);
+$user_info = $stmt_user_info->fetch(PDO::FETCH_ASSOC);
 
+$user_company = $user_info['company_name'] ?? 'N/A';
+$user_department_type = $user_info['department_type_name'] ?? 'N/A';
 
+// filtering 
+$filter_category_id = $_GET['filter_category'] ?? '';
+$filter_status = $_GET['filter_status'] ?? '';
+
+$where_clouses = ['r.user_id = ?'];
+$params = [$_SESSION['user_id']];
+
+if ($filter_category_id !== '') {
+    $where_clouses[] = 'r.category_id = ?';
+    $params[] = $filter_category_id;
+}
+if ($filter_status !== '') {
+    $where_clouses[] = 'r.status = ?';
+    $params[] = $filter_status;
+}
+
+$where_sql = ' WHERE ' . implode(' AND ', $where_clouses);
 ?>
 
 <!DOCTYPE html>
@@ -60,6 +76,11 @@ $categories = $pdo->query(
                                 <a class="nav-link" href="admin_dashboard.php">Admin Dashboard</a>
                             </li>
                         <?php endif; ?>
+                        <?php if ($_SESSION['role'] === 'it_hod'): ?>
+                            <li class="nav-item">
+                                <a class="nav-link" href="admin_dashboard.php">IT HOD Dashboard</a>
+                            </li>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </ul>
                 <ul class="navbar-nav ms-auto">
@@ -71,8 +92,14 @@ $categories = $pdo->query(
         </div>
     </nav>
     
-    <div class="container mt-5">
-        <h1 class="mb-4">Welcome to the IT Request, <?php echo htmlspecialchars($_SESSION['username']); ?></h1>
+     <div class="container mt-5">
+        <h1 class="mb-4">Welcome, <?php echo htmlspecialchars($_SESSION['username']); ?></h1>
+        <p><strong>Role:</strong> <?php echo htmlspecialchars(ucfirst($logged_in_user_role)); ?></p>
+        <p><strong>Company:</strong> <?php echo htmlspecialchars($user_company); ?></p>
+        <p><strong>Department Type:</strong> <?php echo htmlspecialchars($user_department_type); ?></p>
+
+       
+
 
         <!-- Create New Request Card -->
         <div class="card p-4 shadow mb-5">
@@ -122,6 +149,42 @@ $categories = $pdo->query(
             </form>
         </div>
 
+
+                 <!-- filter form-->
+        <div class="card p-4 shadow mb-4">
+            <h2 class="h4 text-dark mb-3">Filter Requests</h2>
+            <form method="GET" action="index.php" class="row g-3">
+                <div class="col-md-4">
+                    <label for="filterCategory" class="form-label">Category</label>
+                    <select name="filter_category" id="fitlerCategory" class="form-select">
+                        <option value="">All Category</option>
+                        <?php foreach ($categories as $cat): ?>
+                        <option value="<?php echo htmlspecialchars($cat['id']); ?>"<?php echo ($filter_category_id == $cat['id']) ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($cat['name']); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="filterStatus" class="form-label">Status</label>
+                    <select name="filter_status" id="filterStatus" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="Pending Manager" <?php echo ($filter_status == 'Pending Manager') ? 'selected' : ''; ?>>Pending Manager</option>
+                        <option value="Approved by Manager" <?php echo ($filter_status == 'Approved by Manager') ? 'selected' : ''; ?>>Approved by Manager</option>
+                        <option value="Pending IT HOD" <?php echo ($filter_status == 'Pending IT HOD') ? 'selected' : ''; ?>>Pending IT HOD</option>
+                        <option value="Approved" <?php echo ($filter_status == 'Approved') ? 'selected' : ''; ?>>Approved</option>
+                        <option value="Rejected" <?php echo ($filter_status == 'Rejected') ? 'selected' : ''; ?>>Rejected</option>
+
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-purple">Apply Filters</button>
+                    <a href="index.php" class="btn btn-secondary ms-2">Clear Filters</a>
+                </div>
+            </form>
+        </div>
+
+
         <!-- Your Requests Card -->
         <div class="card p-4 shadow">
             <h2 class="h4 text-dark mb-3">Your Requests</h2>
@@ -142,12 +205,21 @@ $categories = $pdo->query(
                     <tbody>
                         <?php
                         //$stmt = $pdo->prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY created_at DESC');
-                        $stmt = $pdo->prepare('SELECT r.*, c.name as category_name, sc.name as subcategory_name
-                        FROM requests r
-                        LEFT JOIN categories c ON r.category_id = c.id 
-                        LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
-                        WHERE r.user_id = ? ORDER BY r.created_at DESC');
-                        $stmt->execute([$_SESSION['user_id']]);
+                       
+                       /*$stmt = $pdo->prepare('SELECT r.*, c.name as category_name, sc.name as subcategory_name
+                                            FROM requests r
+                                            LEFT JOIN categories c ON r.category_id = c.id 
+                                            LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
+                                            WHERE r.user_id = ? ORDER BY r.created_at DESC');
+                         $stmt->execute([$_SESSION['user_id']]);
+                         */
+                         $stmt = $pdo->prepare('SELECT r.*, c.name as category_name, sc.name as subcategory_name, ca.username as current_approver_username 
+                                             FROM requests r 
+                                             LEFT JOIN categories c ON r.category_id = c.id
+                                             LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
+                                             LEFT JOIN users ca ON r.current_approver_id = ca.id
+                                             ' . $where_sql . ' ORDER BY r.created_at DESC');
+                        $stmt->execute($params);
                         
                         while ($request = $stmt->fetch()) {
                             $status = trim($request['status']); 
@@ -180,7 +252,7 @@ $categories = $pdo->query(
                             echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A') . '</td>';
                             echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($status) . '</span></td>'; 
                             echo '<td>' . htmlspecialchars($request['priority']) . '</td>';
-
+                            echo '<td>' . htmlspecialchars($request['current-approver-username'] ?? 'N/A') . '</td>';
                             echo '<td>';
                               if ($request['attachment_path']) {
                                 echo '<a href="' . htmlspecialchars($request['attachment_path']) . '" target="_blank" class="btn btn-info btn-sm">View</a>';

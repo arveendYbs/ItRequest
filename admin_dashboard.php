@@ -28,6 +28,23 @@ $managers = $pdo->query('SELECT id, username FROM users WHERE role = "manager" O
 $logged_in_user_id = $_SESSION['user_id'];
 $logged_in_user_role = $_SESSION['role'];
 
+// filtering 
+$filter_category_id = $_GET['filter_category'] ?? '';
+$filter_status = $_GET['filter_status'] ?? '';
+
+$where_clouses = ['r.user_id = ?'];
+$params = [$_SESSION['user_id']];
+
+if ($filter_category_id !== '') {
+    $where_clouses[] = 'r.category_id = ?';
+    $params[] = $filter_category_id;
+}
+if ($filter_status !== '') {
+    $where_clouses[] = 'r.status = ?';
+    $params[] = $filter_status;
+}
+
+
 ?>
 
 <!DOCTYPE html>
@@ -92,6 +109,36 @@ $logged_in_user_role = $_SESSION['role'];
                     ?>
                 </h3>
             <?php endif; ?>
+        </div>
+        
+                        <!-- filter form-->
+        <div class="card p-4 shadow mb-4">
+            <h2 class="h4 text-dark mb-3">Filter Requests</h2>
+            <form method="GET" action="index.php" class="row g-3">
+                <div class="col-md-4">
+                    <label for="filterCategory" class="form-label">Category</label>
+                    <select name="filter_category" id="fitlerCategory" class="form-select">
+                        <?php foreach ($categories as $cat): ?>
+                        <option value="<?php echo htmlspecialchars($cat['id']); ?>"<?php echo ($filter_category_id == $cat['id']) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($cat['name']); ?>
+
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="filterStatus" class="form-label">Status</label>
+                    <select name="filter_status" id="filterStatus" class="form-select">
+                        <option value="">AllStatuses</option>
+                        <option value="Pending Manager" <?php echo ($filter_status == 'Pending Manager') ? 'selected' : ''; ?>>Pending Manager</option>
+                        <option value="Approved by Manager" <?php echo ($filter_status == 'Approved by Manager') ? 'selected' : ''; ?>>Approved by Manager</option>
+                        <option value="Pending IT HOD" <?php echo ($filter_status == 'Pending IT HOD') ? 'selected' : ''; ?>>Pending IT HOD</option>
+                        <option value="Approved" <?php echo ($filter_status == 'Approved') ? 'selected' : ''; ?>>Approved</option>
+                        <option value="Rejected" <?php echo ($filter_status == 'Rejected') ? 'selected' : ''; ?>>Rejected</option>
+
+                    </select>
+                </div>
+            </form>
         </div>
         <!-- All Requests Table Card -->
         <div class="card p-4 shadow mb-5">
