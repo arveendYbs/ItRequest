@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_request'])) {
 
    // Only allow edit if request owner and status is Pending Manager (initial pending state for user)
     // If it's Approved by Manager, user should no longer edit.
-    if (!$request || $request['user_id'] != $current_user_id || trim($request['status']) !== 'Pending Manager') {
+    if (!$request || $request['user_id'] != $current_user_id || trim($request['status']) !== 'Pending Manager' || trim($request['status'] !== 'Pending IT HOD')) {
         echo "You are not authorized to edit this request or its status is not pending manager.";
         exit();
     }

@@ -262,7 +262,7 @@ $where_sql = ' WHERE ' . implode(' AND ', $where_clouses);
                             echo '</td>';
                             echo '<td>';
                             // Show Edit and Delete buttons only if status is Pending
-                            if ($status === 'Pending Manager') {
+                            if ($status === 'Pending Manager' || $status === 'Pending IT HOD') {
                                 echo '<a href="edit_request.php?id=' . htmlspecialchars($request['id']) . '" class="btn btn-secondary btn-sm me-2">Edit</a>';
                                 echo '<form method="POST" action="backend.php" class="d-inline-block">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">

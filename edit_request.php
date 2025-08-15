@@ -23,7 +23,8 @@ $stmt = $pdo->prepare('SELECT r.*, c.name as category_name, sc.name as subcatego
 $stmt->execute([$request_id, $_SESSION['user_id']]);
 $request = $stmt->fetch();
 
-if (!$request || trim($request['status']) !== 'Pending Manager') {
+//if (!$request || trim($request['status']) !== 'Pending Manager'|| trim($request['status']) !== 'Pending IT HOD') {
+if (!$request || !isset($request['status']) || !in_array(trim($request['status']), ['Pending Manager', 'Pending IT HOD'])) {
     // If request not found, not owned by user, or not pending, deny access
     echo "You are not authorized to edit this request or its status is not pending.";
     // Optionally, redirect to index.php with an error message
@@ -62,12 +63,12 @@ if ($request['category_id']) {
                         <a class="nav-link" href="index.php">Home</a>
                     </li>
                     <?php if (isset($_SESSION['role'])): ?>
-                        <?php if ($_SESSION['role'] === 'manager'): ?>
+                        <?php if (in_array($_SESSION['role'], ['manager', 'admin', 'it_hod'])): ?>
                             <li class="nav-item">
                                 <a class="nav-link" href="manager_dashboard.php">Manager Dashboard</a>
                             </li>
                         <?php endif; ?>
-                        <?php if ($_SESSION['role'] === 'admin'): ?>
+                        <?php if (in_array($_SESSION['role'], ['admin', 'it_hod'])): ?>
                             <li class="nav-item">
                                 <a class="nav-link" href="admin_dashboard.php">Admin Dashboard</a>
                             </li>

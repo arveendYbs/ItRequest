@@ -103,7 +103,7 @@ if ($filter_status !== '') {
             <?php if ($logged_in_user_role === 'it_hod'): ?>
                 <h3 class="mt-3 mb-0">Requests Pending My IT HOD Approval: 
                     <?php
-                    $stmt_it_hod_pending = $pdo->prepare('SELECT COUNT(*) FROM requests WHERE current_approver_id = ? AND status = "Approved by Manager"');
+                    $stmt_it_hod_pending = $pdo->prepare('SELECT COUNT(*) FROM requests WHERE current_approver_id = ? AND status = "Approved by Manager" OR status = "Pending IT HOD"');
                     $stmt_it_hod_pending->execute([$logged_in_user_id]);
                     echo '<span class="badge bg-warning text-dark">' . $stmt_it_hod_pending->fetchColumn() . '</span>';
                     ?>
@@ -222,7 +222,7 @@ if ($filter_status !== '') {
                             }
                                       */
                             // IT HOD (specific role) approval buttons
-                            if ($logged_in_user_role === 'it_hod' && $status === 'Approved by Manager'  && $request['current_approver_id'] == $logged_in_user_id) {
+                            if ($logged_in_user_role === 'it_hod' && ($status === 'Approved by Manager' || $status === 'Pending IT HOD') && $request['current_approver_id'] == $logged_in_user_id) {
                                 echo '<form method="POST" action="backend.php" class="d-inline-block me-2">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
                                           <button type="submit" name="approve_request" class="btn btn-success btn-sm">Approve IT</button>
