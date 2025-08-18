@@ -2,11 +2,13 @@
 session_start();
 require_once 'config.php';
 
-// Access control: only managers can view this page
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
+
+// Access control: only managers, admins, IT HODs can view this page
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['manager', 'admin', 'it_hod'])) {
     header('Location: login.php');
     exit();
 }
+
 
 $manager_id = $_SESSION['user_id'];
 $logged_in_user_role = $_SESSION['role'];
@@ -38,23 +40,32 @@ $filter_company_id = $_GET['filter_company'] ?? '';
 $filter_department_type_id = $_GET['filter_department_type'] ?? '';
 
 // base where clause for "req for my approvals
-$where_clauses = ['r.current_approver_id = ?', 'r.status = "Pending Manager"'];
-$params = [$manager_id];
+$my_approval_where_clauses = ['r.current_approver_id = ?', 'r.status = "Pending Manager"'];
+$my_approval_params = [$manager_id];
 
 if ($filter_category_id !== '') {
-    $where_clauses[] = 'r.category_id = ?';
-    $params[] = $filter_category_id;
+    $my_approval_where_clauses[] = 'r.category_id = ?';
+    $my_approval_params[] = $filter_category_id;
 }
-if ($filter_category_id !== '') {
-    $where_clauses[] = 'u.company_id = ?';
-    $params[] = $filter_category_id;
+if ($filter_company_id !== '') {
+    $my_approval_where_clauses[] = 'u.company_id = ?';
+    $my_approval_params[] = $filter_company_id;
 }
 if ($filter_department_type_id !== '') {
-    $where_clauses[] = 'u.department_type_id = ?';
-    $params[] = $filter_department_type_id;
+    $my_approval_where_clauses[] = 'u.department_type_id = ?';
+    $my_approval_params[] = $filter_department_type_id;
 }
 
-$where_sql = ' WHERE ' . implode(' AND ', $where_clauses);
+$my_approval_where_sql = '';
+if (!empty($my_approval_where_clauses)) {
+    $my_approval_where_sql = ' WHERE ' . implode(' AND ', $my_approval_where_clauses);
+}
+
+
+$my_approval_where_sql = '';
+if (!empty($my_approval_where_clauses)) {
+    $my_approval_where_sql = ' WHERE ' . implode(' AND ', $my_approval_where_clauses);
+}
 
 // for all subordinates req for tracking table 
 $tracking_where_clauses = ['u.reporting_manager_id = ?'];
@@ -81,8 +92,11 @@ if ($filter_department_type_id !== '') {
         
 }
 
-$tracking_where_sql = ' WHERE ' . implode(' AND ', $tracking_where_clauses);
 
+$tracking_where_sql = '';
+if (!empty($tracking_where_clauses)) {
+    $tracking_where_sql = ' WHERE ' . implode(' AND ', $tracking_where_clauses);
+}
 //fetch dept type for filter dropdown 
 $filter_department_types = [];
 if ($filter_company_id !== ''){
@@ -140,63 +154,6 @@ if ($filter_company_id !== ''){
             <p class="mt-3 mb-0">IT HOD: <?php echo htmlspecialchars($it_hod_username); ?> (ID: <?php echo htmlspecialchars($it_hod_id); ?>)</p>
         </div>
 
-        <!-- filter form -->
-         <div class="card p-4 shadow mb-4">
-            <h2 class="h4 text-dark mb-3">Filter Requests</h2>
-            <form method="GET" action="manager_dashboard.php" class="row g-3">
-                <div class="col-md-3">
-                    <label for="filterCategory" class="form-label">Category</label>
-                    <select name="filter_category" id="filterCategory" class="form-select"> 
-                        <option value=""> All Categories</option>
-                        <?php foreach ($categories as $cat): ?>
-                            <option value="<?php echo htmlspecialchars($cat['id']); ?>" 
-                            <?php echo ($filter_category_id == $cat['id']) ? 'selected' : ''; ''; ?>>
-                            <?php echo htmlspecialchars($cat['name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label for="filterStatus" class="form-label">Status</label>
-                    <select name="filter_status" id="filterStatus" class="form-select"> 
-                        <option value="">All Statuses</option>
-                        <option value="Pending Manager" <?php echo ($filter_status == 'Pending Manager') ? 'selected' : ''; ?>>Pending Manager</option>
-                        <option value="Approved by Manager" <?php echo ($filter_status == 'Approved by Manager') ? 'selected' : ''; ?>>Approved by Manager</option>
-                        <option value="Pending IT HOD" <?php echo ($filter_status == 'Pending IT HOD') ? 'selected' : ''; ?>>Pending IT HOD</option>
-                        <option value="Approved" <?php echo ($filter_status == 'Approved') ? 'selected' : ''; ?>>Approved</option>
-                        <option value="Rejected" <?php echo ($filter_status == 'Rejected') ? 'selected' : ''; ?>>Rejected</option>
-                    </select> 
-
-                    </div>
-                    <div class="col-md-3">
-                    <label for="filterCompany" class="form-label">Company</label>
-                    <select name="filter_company" id="filterCompany" class="form-select">
-                        <option value="">All Companies</option>
-                        <?php foreach ($companies as $comp): ?>
-                            <option value="<?php echo htmlspecialchars($comp['id']); ?>" <?php echo ($filter_company_id == $comp['id']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($comp['name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label for="filterDepartmentType" class="form-label">Department Type</label>
-                    <select name="filter_department_type" id="filterDepartmentType" class="form-select" <?php echo empty($filter_department_types) ? 'disabled' : ''; ?>>
-                        <option value="">All Department Types</option>
-                        <?php foreach ($filter_department_types as $dept_type): ?>
-                            <option value="<?php echo htmlspecialchars($dept_type['id']); ?>" <?php echo ($filter_department_type_id == $dept_type['id']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($dept_type['name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-12 d-flex justify-content-end">
-                    <button type="submit" class="btn btn-purple">Apply Filters</button>
-                    <a href="manager_dashboard.php" class="btn btn-secondary ms-2">Clear Filters</a>
-                </div>
-            </form>
-         </div>
-
         <!-- Requests Pending My Approval Table Card -->
         <div class="card p-4 shadow mb-5">
             <h3 class="mb-3">Requests for My Approval (Pending Manager)</h3>
@@ -220,7 +177,7 @@ if ($filter_company_id !== ''){
                     </thead>
                     <tbody>
                         <?php
-                        // Fetch only requests where THIS manager is the current approver AND status is Pending Manager
+                       // Fetch requests where THIS manager is the current approver AND status is Pending Manager
                         $stmt = $pdo->prepare('SELECT r.*, u.username, cpn.name as company_name, dt.name as department_type_name, cat.name as category_name, sc.name as subcategory_name, ca.username as current_approver_username
                                              FROM requests r 
                                              JOIN users u ON r.user_id = u.id 
@@ -229,8 +186,9 @@ if ($filter_company_id !== ''){
                                              LEFT JOIN categories cat ON r.category_id = cat.id
                                              LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
                                              LEFT JOIN users ca ON r.current_approver_id = ca.id 
-                                             ' . $where_sql . ' ORDER BY r.created_at DESC');
-                        $stmt->execute($params);
+                                             ' . $my_approval_where_sql . ' ORDER BY r.created_at DESC'); // Using my_approval_where_sql
+                        $stmt->execute($my_approval_params); // Using my_approval_params
+                        
                         
                         while ($request = $stmt->fetch()) {
                             $status = trim($request['status']); 
@@ -301,6 +259,63 @@ if ($filter_company_id !== ''){
         </div>
         
 
+        <!-- filter form -->
+         <div class="card p-4 shadow mb-4">
+            <h2 class="h4 text-dark mb-3">Filter Requests</h2>
+            <form method="GET" action="manager_dashboard.php" class="row g-3">
+                <div class="col-md-3">
+                    <label for="filterCategory" class="form-label">Category</label>
+                    <select name="filter_category" id="filterCategory" class="form-select"> 
+                        <option value=""> All Categories</option>
+                        <?php foreach ($categories as $cat): ?>
+                            <option value="<?php echo htmlspecialchars($cat['id']); ?>" 
+                            <?php echo ($filter_category_id == $cat['id']) ? 'selected' : ''; ''; ?>>
+                            <?php echo htmlspecialchars($cat['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filterStatus" class="form-label">Status</label>
+                    <select name="filter_status" id="filterStatus" class="form-select"> 
+                        <option value="">All Statuses</option>
+                        <option value="Pending Manager" <?php echo ($filter_status == 'Pending Manager') ? 'selected' : ''; ?>>Pending Manager</option>
+                        <option value="Approved by Manager" <?php echo ($filter_status == 'Approved by Manager') ? 'selected' : ''; ?>>Approved by Manager</option>
+                        <option value="Pending IT HOD" <?php echo ($filter_status == 'Pending IT HOD') ? 'selected' : ''; ?>>Pending IT HOD</option>
+                        <option value="Approved" <?php echo ($filter_status == 'Approved') ? 'selected' : ''; ?>>Approved</option>
+                        <option value="Rejected" <?php echo ($filter_status == 'Rejected') ? 'selected' : ''; ?>>Rejected</option>
+                    </select> 
+
+                    </div>
+                    <div class="col-md-3">
+                    <label for="filterCompany" class="form-label">Company</label>
+                    <select name="filter_company" id="filterCompany" class="form-select">
+                        <option value="">All Companies</option>
+                        <?php foreach ($companies as $comp): ?>
+                            <option value="<?php echo htmlspecialchars($comp['id']); ?>" <?php echo ($filter_company_id == $comp['id']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($comp['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filterDepartmentType" class="form-label">Department Type</label>
+                    <select name="filter_department_type" id="filterDepartmentType" class="form-select" <?php echo empty($filter_department_types) ? 'disabled' : ''; ?>>
+                        <option value="">All Department Types</option>
+                        <?php foreach ($filter_department_types as $dept_type): ?>
+                            <option value="<?php echo htmlspecialchars($dept_type['id']); ?>" <?php echo ($filter_department_type_id == $dept_type['id']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($dept_type['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-12 d-flex justify-content-end">
+                    <button type="submit" class="btn btn-purple">Apply Filters</button>
+                    <a href="manager_dashboard.php" class="btn btn-secondary ms-2">Clear Filters</a>
+                </div>
+            </form>
+         </div>
+
                 
         <!-- All Subordinates' Requests (Read-only for tracking) -->
         <div class="card p-4 shadow mt-5">
@@ -326,19 +341,18 @@ if ($filter_company_id !== ''){
                     <tbody>
                         <?php
                         // Fetch all requests where the user's reporting_manager_id matches the current manager's ID
-                        // This table is for tracking purposes, not for active approval.
-                        $stmt_all_subordinates = $pdo->prepare('SELECT r.*, u.username, cpn.name as company_name, dt.name as department_type_name,c.name as category_name, sc.name as subcategory_name, ca.username as current_approver_username
+                        // Fetch all requests where the user's reporting_manager_id matches the current manager's ID
+                        $stmt_all_subordinates = $pdo->prepare('SELECT r.*, u.username, cpn.name as company_name, dt.name as department_type_name, cat.name as category_name, sc.name as subcategory_name, ca.username as current_approver_username
                                              FROM requests r 
                                              JOIN users u ON r.user_id = u.id 
                                              LEFT JOIN companies cpn ON u.company_id = cpn.id
-                                             LEFT JOIN department_types dt ON u.department_type_id = dt.id  
-                                             LEFT JOIN categories c ON r.category_id = c.id                                   
+                                             LEFT JOIN department_types dt ON u.department_type_id = dt.id
+                                             LEFT JOIN categories cat ON r.category_id = cat.id
                                              LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
                                              LEFT JOIN users ca ON r.current_approver_id = ca.id
-                                             WHERE u.reporting_manager_id = ? 
-                                             ORDER BY r.created_at DESC');
-                        $stmt_all_subordinates->execute([$manager_id]);
-                        
+                                             ' . $tracking_where_sql . ' ORDER BY r.created_at DESC'); // Using tracking_where_sql
+                        $stmt_all_subordinates->execute($tracking_params); // Using tracking_params
+                           
                         while ($request = $stmt_all_subordinates->fetch()) {
                             $status = trim($request['status']); 
                             $status_class = '';

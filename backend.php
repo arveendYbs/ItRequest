@@ -465,7 +465,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_user'])) {
     exit();
 }
 
-
 // Update user (admin only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_user'])) {
     checkRole('admin', $pdo);
@@ -473,9 +472,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_user'])) {
     $user_id = $_POST['user_id'];
     $username = $_POST['username'];
     $role = $_POST['role'];
+    // Important: Convert empty string from 'None' selection to NULL for database
     $reporting_manager_id = $_POST['reporting_manager_id'] !== '' ? $_POST['reporting_manager_id'] : null;
-    $company_id = $_POST['company_id'] !== '' ? $_POST['company_id'] : null; // Changed from division_id
-    $department_type_id = $_POST['department_type_id'] !== '' ? $_POST['department_type_id'] : null; // Changed from department_id
+    $company_id = $_POST['company_id'] !== '' ? $_POST['company_id'] : null;
+    $department_type_id = $_POST['department_type_id'] !== '' ? $_POST['department_type_id'] : null;
 
     $sql = 'UPDATE users SET username = ?, role = ?, reporting_manager_id = ?, company_id = ?, department_type_id = ? WHERE id = ?';
     $params = [$username, $role, $reporting_manager_id, $company_id, $department_type_id, $user_id];
@@ -499,6 +499,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
     header('Location: admin_dashboard.php');
     exit();
 }   
+// CRUD for Companies (admin only) - Changed from Divisions
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_company'])) { // Changed from create_division
+    checkRole('admin', $pdo);
+    $stmt = $pdo->prepare('INSERT INTO companies (name) VALUES (?)'); // Changed table name
+    $stmt->execute([$_POST['company_name']]); // Changed from division_name
+    header('Location: admin_dashboard.php');
+    exit();
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_company'])) { // Changed from delete_division
+    checkRole('admin', $pdo);
+    $stmt = $pdo->prepare('DELETE FROM companies WHERE id = ?'); // Changed table name
+    $stmt->execute([$_POST['id']]);
+    header('Location: admin_dashboard.php');
+    exit();
+}
+
 
 // CRUD for Department Types (admin only) - Changed from Departments
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_department_type'])) { // Changed from create_department
@@ -514,7 +529,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_department_typ
     header('Location: admin_dashboard.php');
     exit();
 }
-
 // CRUD for Categories (admin only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_category'])) {
     checkRole('admin', $pdo);
@@ -554,5 +568,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     $stmt->execute([$category_id]);
     $subcategories = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode($subcategories);
+    exit();
+}
+
+
+// AJAX endpoint to fetch department types by company
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_department_types') {
+    header('Content-Type: application/json');
+    $company_id = $_GET['company_id'] ?? 0;
+    $stmt = $pdo->prepare('SELECT id, name FROM department_types WHERE company_id = ? ORDER BY name');
+    $stmt->execute([$company_id]);
+    $department_types = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode($department_types);
     exit();
 }
