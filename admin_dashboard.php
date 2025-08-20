@@ -702,7 +702,13 @@ if ($filter_company_id !== '') {
             <h3 class="mb-3">Export Data</h3>
             <a href="export_requests.php" class="btn btn-success w-25">Export Requests to Excel (CSV)</a>
         </div>
+            
     </div>
+    <?php
+                echo "";
+            
+                echo "&copy; " . date("Y") . " Your Company Name. All rights reserved.";
+                ?>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
  <script>

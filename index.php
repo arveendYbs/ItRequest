@@ -289,6 +289,9 @@ $where_sql = ' WHERE ' . implode(' AND ', $where_clouses);
                 </table>
             </div>
         </div>
+            <?php
+                 echo "&copy; 2025 Your Company Name. All rights reserved.";
+            ?>
     </div>
     <!-- Bootstrap JS (optional, for some components like dropdowns) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

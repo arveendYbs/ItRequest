@@ -57,7 +57,7 @@ $can_act_on_request = false;
 if ($request['current_approver_id'] == $logged_in_user_id) {
     if ($logged_in_user_role === 'manager' && $status === 'Pending Manager') {
         $can_act_on_request = true;
-    } elseif ($logged_in_user_role === 'it_hod' && $status === 'Pending IT HOD') {
+    } elseif ($logged_in_user_role === 'it_hod' && ($status === 'Pending IT HOD' || $status === 'Approved by Manager')) {
         $can_act_on_request = true;
     }
 }
