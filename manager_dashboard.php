@@ -232,7 +232,7 @@ if ($filter_company_id !== ''){
                             echo '</td>';
                             echo '<td>';
                             
-                            // Buttons logic for manager: Only approve/reject if it's pending their approval
+                         /*   // Buttons logic for manager: Only approve/reject if it's pending their approval
                             if ($status === 'Pending Manager' && $request['current_approver_id'] == $manager_id) {
                                 echo '<form method="POST" action="backend.php" class="d-inline-block me-2">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
@@ -249,8 +249,10 @@ if ($filter_company_id !== ''){
                             } else {
                                 echo 'No actions required'; 
                             }
-                            echo '</td>';
-                            echo '</tr>';
+                                */
+                            // Actions now link to view_request.php
+                            echo '<a href="view_request.php?id=' . htmlspecialchars($request['id']) . '" class="btn btn-primary btn-sm">View</a>';
+                            echo '</td>';                            echo '</tr>';
                         }
                         ?>
                     </tbody>
@@ -404,7 +406,8 @@ if ($filter_company_id !== ''){
                             } else {
                                 echo 'N/A';
                             } */
-                           echo 'N/A';
+                              // Actions now link to view_request.php
+                            echo '<a href="view_request.php?id=' . htmlspecialchars($request['id']) . '" class="btn btn-primary btn-sm">View</a>';
                             echo '</td>';
                             echo '</tr>';
                         }

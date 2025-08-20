@@ -285,7 +285,7 @@ if ($filter_company_id !== '') {
                                       */
 
               
-                            // IT HOD (specific role) approval buttons
+                    /*        // IT HOD (specific role) approval buttons
                             if ($logged_in_user_role === 'it_hod' && ($status === 'Approved by Manager' || $status === 'Pending IT HOD') && $request['current_approver_id'] == $logged_in_user_id) {
                                 echo '<form method="POST" action="backend.php" class="d-inline-block me-2">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
@@ -304,6 +304,10 @@ if ($filter_company_id !== '') {
                                           <button type="submit" name="delete_request" class="btn btn-danger btn-sm">Delete</button>
                                       </form>';
                             }
+
+                            */
+                               // Actions now link to view_request.php
+                            echo '<a href="view_request.php?id=' . htmlspecialchars($request['id']) . '" class="btn btn-primary btn-sm">View</a>';
                             echo '</td>';
                             echo '</tr>';
                         }

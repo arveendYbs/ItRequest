@@ -232,6 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
     $approver_id = $_SESSION['user_id'];
     $approver_role = $_SESSION['role'];
     $it_hod_id = getItHodId($pdo);
+    $current_timestamp = date('Y-m-d H:i:s');
 
     // Fetch request details to determine current status and approver
     $stmt_request = $pdo->prepare("SELECT status, current_approver_id FROM requests WHERE id = ?");
@@ -251,18 +252,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
         echo $approver_id ;
         echo "it_hod_id:  $it_hod_id + $approver_role" ;
         echo "You are not authorized to approve this request at this stage.";
+        header('Location: view_request.php?id =' . $request_id . '&error=unauthorized');
         exit();
     }
 
     $new_status = $current_status;
     $new_approver_id = $expected_approver_id; // Remains the same if not advancing
-
+    $update_fields = [];
+    $update_params = [];
     switch ($current_status) {
         case 'Pending Manager':
             // If current approver is a manager and is the expected approver
             if ($approver_role === 'manager' || $approver_id == $expected_approver_id) {
                 $new_status = 'Approved by Manager';
                 $new_approver_id = $it_hod_id; // Next approver is IT HOD
+                $update_fields[] = 'manager_approved_by = ?';
+                $update_params[] = $approver_id;
+                $update_fields[] = 'manager_approved_at = ?';
+                $update_params[] = $current_timestamp;
                 if (!$new_approver_id) { // Fallback if IT HOD not found
                     $new_status = 'Approved'; // Directly approve if no IT HOD set
                     $new_approver_id = null;
@@ -279,6 +286,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
         if ($approver_role === 'it_hod' && $approver_id == $it_hod_id) {
                 $new_status = 'Approved'; // Final approval
                 $new_approver_id = null;
+                $update_fields[] = 'it_hod_approved_by = ?';
+                $update_params[] = $approver_id;
+                $update_fields[] = 'it_hod_approved_by = ?';
+                $update_params[] = $current_timestamp;
             } else {
                 echo "Invalid approval attempt for Pending IT HOD status.";
                 exit();
@@ -288,6 +299,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
             if ($approver_role === 'it_hod' && $approver_id == $it_hod_id) {
                 $new_status = 'Approved'; // Final approval
                 $new_approver_id = null;
+                $update_fields[] = 'it_hod_approved_by = ?';
+                $update_params[] = $approver_id;
+                $update_fields[] = 'it_hod_approved_by = ?';
+                $update_params[] = $current_timestamp;
             } else { 
                 echo "Invalid approval attempt for Pending IT HOD status.";
                 exit();
@@ -299,9 +314,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
             exit();
     }
 
+    $update_fields[] = 'status = ?';
+    $update_params[] = $new_status;
+    $update_fields[] = 'current_approver_id = ?';
+    $update_params[] = $new_approver_id;
+    $update_params[] = $request_id;
+
+    
+    $stmt_update = $pdo->prepare("UPDATE requests SET " . implode(', ', $update_fields) . " WHERE id = ?");
+    $stmt_update->execute($update_params);
+
     // Update the request with the new status and next approver
-    $stmt_update = $pdo->prepare("UPDATE requests SET status = ?, current_approver_id = ? WHERE id = ?");
-    $stmt_update->execute([$new_status, $new_approver_id, $request_id]);
+    //$stmt_update = $pdo->prepare("UPDATE requests SET status = ?, current_approver_id = ? WHERE id = ?");
+    //$stmt_update->execute([$new_status, $new_approver_id, $request_id]);
 
     // Redirect based on approver role
     if ($approver_role === 'manager') {
@@ -343,24 +368,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
     // Check if the current user is the expected approver for this stage
     if ($approver_id != $expected_approver_id) {
         echo "You are not authorized to reject this request at this stage.";
+        header('Location: view_request.php?id=' . $request_id . '&error=invalid_role_reject');
         exit();
     }
 
     // Only allow rejection if status is Pending Manager or Pending IT HOD
-    if ($current_status === 'Pending Manager' || $current_status === 'Approved by Manager') {
+    if ($current_status === 'Pending Manager' || $current_status === 'Approved by Manager' || $current_status === 'Pending IT HOD') {
         $stmt = $pdo->prepare("UPDATE requests SET status = 'Rejected', current_approver_id = NULL WHERE id = ?");
         $stmt->execute([$request_id]);
     } else {
         echo "Request is not in a rejectable state.";
+        header('Location: view_request.php?id=' . $request_id . '&error=not_rejectable_state');
         exit();
     }
     
     // Redirect based on approver role
-    if ($approver_role === 'manager') {
+    /*if ($approver_role === 'manager') {
         header('Location: manager_dashboard.php');
     } elseif ($approver_role === 'admin') {
         header('Location: admin_dashboard.php');
-    }
+    }*/
+    header('Location: view_request.php?id=' . $request_id . '&success=rejected');
     exit();
 }
 
@@ -382,12 +410,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_request'])) {
 
     if (!$request_details) {
         echo "Request not found.";
+          if ($role === 'admin' || $role === 'it_hod') {
+            header('Location: admin_dashboard.php');
+        } elseif ($role === 'manager') {
+            header('Location: manager_dashboard.php');
+        } else {
+            header('Location: index.php');
+        }
         exit();
     }
 
     $request_status = trim($request_details['status']);
     $request_owner_id = $request_details['user_id'];
     $attachment_path = $request_details['attachment_path'];
+    $request_current_approver_id = $request_details['current_approver_id'];
+
+    
 
     // Authorization for deletion
     $can_delete = false;
@@ -417,6 +455,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_request'])) {
 
     if (!$can_delete) {
         echo "You are not authorized to delete this request at this stage.";
+        header('Location: view_request.php?id' . $request_id . '&error=unauthorized_delete');
         exit();
     }
 
@@ -429,6 +468,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_request'])) {
         unlink($attachment_path);
     }
     
+
     // Redirect based on role
     if ($role === 'admin') {
         header('Location: admin_dashboard.php');

@@ -12,8 +12,9 @@ $logged_in_user_id = $_SESSION['user_id'];
 $logged_in_user_role = $_SESSION['role'];
 
 //fetch all categrories fro the dropdown 
-$categories = $pdo->query(
-    'SELECT id, name FROM categories ORDER BY name')->fetchALL(PDO::FETCH_ASSOC);
+$categories = $pdo->query('SELECT id, name FROM categories ORDER BY name')->fetchALL(PDO::FETCH_ASSOC);
+
+// fetch user's comp and dept
 $stmt_user_info = $pdo->prepare('SELECT c.name as company_name, dt.name as department_type_name
                                 FROM users u 
                                 LEFT JOIN companies c ON u.company_id = c.id
@@ -200,8 +201,9 @@ $where_sql = ' WHERE ' . implode(' AND ', $where_clouses);
                             <th>Subcategory</th>
                             <th>Status</th>
                             <th>Priority</th>
+                            <th>Current Approver</th>
                             <th>Attachment</th>
-                            <th>Actions</th>
+                            <th>View</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -254,17 +256,17 @@ $where_sql = ' WHERE ' . implode(' AND ', $where_clouses);
                             echo '<td>' . htmlspecialchars($request['subcategory_name'] ?? 'N/A') . '</td>';
                             echo '<td><span class="badge ' . $status_class . '">' . htmlspecialchars($status) . '</span></td>'; 
                             echo '<td>' . htmlspecialchars($request['priority']) . '</td>';
-                            echo '<td>' . htmlspecialchars($request['current-approver-username'] ?? 'N/A') . '</td>';
+                            echo '<td>' . htmlspecialchars($request['current_approver_username'] ?? 'N/A') . '</td>';
                             echo '<td>';
-                              if ($request['attachment_path']) {
+                            if ($request['attachment_path']) {
                                 echo '<a href="' . htmlspecialchars($request['attachment_path']) . '" target="_blank" class="btn btn-info btn-sm">View</a>';
                             } else {
                                 echo 'N/A';
                             }
                             echo '</td>';
-                            echo '<td>';
+                            //echo '<td>';
                             // Show Edit and Delete buttons only if status is Pending
-                            if ($status === 'Pending Manager' || $status === 'Pending IT HOD') {
+                            /*if ($status === 'Pending Manager' || $status === 'Pending IT HOD') {
                                 echo '<a href="edit_request.php?id=' . htmlspecialchars($request['id']) . '" class="btn btn-secondary btn-sm me-2">Edit</a>';
                                 echo '<form method="POST" action="backend.php" class="d-inline-block">
                                           <input type="hidden" name="id" value="' . htmlspecialchars($request['id']) . '">
@@ -272,7 +274,13 @@ $where_sql = ' WHERE ' . implode(' AND ', $where_clouses);
                                       </form>';
                             } else {
                                 echo 'No actions';
-                            }
+                            }*/
+                            // show view button 
+                            echo '<td>';
+                            echo '<a href="view_request.php?id=' . htmlspecialchars($request['id']) . '" class="btn btn-primary btn-sm">View</a>';
+                                if ($status === 'Pending Manager' && $request['user_id'] == $logged_in_user_id){
+                                  echo '<a href="edit_request.php?id=' . htmlspecialchars($request['id']) . '"class="btn btn-secondary btn-sm ms-2">Edit</a>';
+                                }
                             echo '</td>';
                             echo '</tr>';
                         }
