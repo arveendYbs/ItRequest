@@ -385,7 +385,7 @@ if ($filter_company_id !== '') {
                     </thead>
                     <tbody>
                         <?php
-                        $users = $pdo->query('SELECT u.id, u.username, u.role, cpn.name as company_name, dt.name as department_type_name, rm.username AS manager_username 
+                        $users = $pdo->query('SELECT u.id, u.username, u.role, u.company_id, u.department_type_id, u.reporting_manager_id, cpn.name as company_name, dt.name as department_type_name, rm.username AS manager_username 
                                               FROM users u 
                                               LEFT JOIN companies cpn ON u.company_id = cpn.id
                                               LEFT JOIN department_types dt ON u.department_type_id = dt.id

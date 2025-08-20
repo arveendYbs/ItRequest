@@ -18,6 +18,8 @@ if (!isset($_SESSION['role']) || (!in_array($_SESSION['role'], ['manager', 'admi
 $stmt = $pdo->query('SELECT 
                         r.id, 
                         u.username as requested_by, 
+                        cpn.name as user_company,
+                        dt.name as user_department_type,
                         r.title, 
                         r.description, 
                         c.name as category_name, 
@@ -28,6 +30,8 @@ $stmt = $pdo->query('SELECT
                         r.created_at
                      FROM requests r 
                      JOIN users u ON r.user_id = u.id 
+                     LEFT JOIN companies cpn ON u.company_id = cpn.id
+                     LEFT JOIN department_types dt ON u.department_type_id = dt.id 
                      LEFT JOIN categories c ON r.category_id = c.id
                      LEFT JOIN subcategories sc ON r.subcategory_id = sc.id
                      LEFT JOIN users ca ON r.current_approver_id = ca.id
@@ -45,6 +49,8 @@ $output = fopen('php://output', 'w');
 fputcsv($output, array(
     'Request ID', 
     'Requested By', 
+    'User Company',
+    'Department',
     'Title', 
     'Description', 
     'Category', 
@@ -61,13 +67,15 @@ foreach ($requests as $request) {
     $row = [
         $request['id'],
         $request['requested_by'],
+        $request['Company'],
+        $request['Department'],
         $request['title'],
         $request['description'],
         $request['category_name'] ?? 'N/A',
         $request['subcategory_name'] ?? 'N/A',
         $request['status'],
         $request['priority'],
-      //  $request['attachment_path'] ?? 'N/A',
+      //$request['attachment_path'] ?? 'N/A',
         $request['current_approver'] ?? 'N/A',
         $request['created_at']
     ];
